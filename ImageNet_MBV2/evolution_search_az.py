@@ -22,6 +22,8 @@ from ZeroShotProxy import *
 import benchmark_network_latency
 
 import scipy.stats as stats
+from sklearn.metrics import mutual_info_score
+import pandas as pd
 import pickle
 
 working_dir = os.path.dirname(os.path.abspath(__file__))
@@ -153,6 +155,39 @@ def compute_nas_score(AnyPlainNet, random_structure_str, gpu, args, trainloader=
                                                     resolution=args.input_image_size,
                                                     batch_size=args.batch_size)
     del the_model
+    torch.cuda.empty_cache()
+    return info
+
+
+def compute_all_proxies(AnyPlainNet, random_structure_str, gpu, args, trainloader=None, lossfunc=None):
+    """Compute all zero-cost proxies for a given architecture."""
+    net = AnyPlainNet(num_classes=args.num_classes, plainnet_struct=random_structure_str,
+                      no_create=False, no_reslink=args.search_no_res)
+    net = net.cuda(gpu)
+
+    info = compute_az_nas_score.compute_nas_score(model=net, gpu=gpu, trainloader=trainloader,
+                                                  resolution=args.input_image_size,
+                                                  batch_size=args.batch_size)
+
+    info['zen'] = compute_zen_score.compute_nas_score(
+        gpu, net, args.gamma, args.input_image_size, args.batch_size, repeat=1)['avg_nas_score']
+    info['gradnorm'] = compute_gradnorm_score.compute_nas_score(
+        gpu, net, args.input_image_size, args.batch_size)
+    info['syncflow'] = compute_syncflow_score.do_compute_nas_score(
+        gpu, net, args.input_image_size, args.batch_size)
+    info['naswot'] = compute_NASWOT_score.compute_nas_score(
+        gpu, net, args.input_image_size, args.batch_size)
+    info['te_nas'] = compute_te_nas_score.compute_NTK_score(
+        gpu, net, args.input_image_size, args.batch_size)
+    if trainloader is not None and lossfunc is not None:
+        info['zico'] = compute_zico.getzico(net, trainloader, lossfunc)
+    else:
+        info['zico'] = np.nan
+    info['flops'] = net.get_FLOPs(args.input_image_size)
+    info['params'] = net.get_model_size()
+    info['random'] = np.random.randn()
+
+    del net
     torch.cuda.empty_cache()
     return info
 
@@ -297,24 +332,53 @@ def main(args, argv):
             logging.info(log_string)
         
         search_time_start = time.time()
-        the_nas_core = compute_nas_score(AnyPlainNet, random_structure_str, gpu, args, trainbatches, lossfunc)
+        the_nas_core = compute_all_proxies(AnyPlainNet, random_structure_str, gpu, args, trainbatches, lossfunc)
         search_time_list.append(time.time() - search_time_start)
 
-        if popu_zero_shot_score_dict is None: # initialize dict
+        if popu_zero_shot_score_dict is None:  # initialize dict
             popu_zero_shot_score_dict = dict()
             for k in the_nas_core.keys():
                 popu_zero_shot_score_dict[k] = []
         for k, v in the_nas_core.items():
             popu_zero_shot_score_dict[k].append(v)
 
+        # ----- save correlation statistics -----
+        keys_sorted = sorted(popu_zero_shot_score_dict.keys())
+        scores = np.stack([popu_zero_shot_score_dict[k] for k in keys_sorted], 1)
+        np.save(os.path.join(args.save_dir, f"X_{loop_count}.npy"), scores)
+
+        S = stats.spearmanr(scores).correlation
+        np.save(os.path.join(args.save_dir, f"S_{loop_count}.npy"), S)
+
+        K = np.array([[stats.kendalltau(scores[:, i], scores[:, j]).correlation
+                       for j in range(scores.shape[1])]
+                      for i in range(scores.shape[1])])
+        np.save(os.path.join(args.save_dir, f"K_{loop_count}.npy"), K)
+
+        bins = [pd.qcut(scores[:, j], q=10, labels=False, duplicates='drop')
+                for j in range(scores.shape[1])]
+        M = np.zeros_like(S)
+        for i in range(scores.shape[1]):
+            for j in range(scores.shape[1]):
+                M[i, j] = mutual_info_score(bins[i], bins[j])
+        np.save(os.path.join(args.save_dir, f"M_{loop_count}.npy"), M)
+
+        lamb = np.linalg.eigvalsh(S)[::-1]
+        np.save(os.path.join(args.save_dir, f"lambda_{loop_count}.npy"), lamb)
+
+        upper = np.triu_indices_from(S, k=1)
+        r_g = np.median(np.abs(S[upper]))
+        np.save(os.path.join(args.save_dir, f"r_{loop_count}.npy"), r_g)
+
+        az_keys = ['expressivity', 'progressivity', 'trainability', 'complexity']
         popu_zero_shot_score_list = None
-        for key in popu_zero_shot_score_dict.keys():
+        for key in az_keys:
             l = len(popu_zero_shot_score_dict[key])
             _rank = stats.rankdata(popu_zero_shot_score_dict[key])
             if popu_zero_shot_score_list is not None:
-                popu_zero_shot_score_list = popu_zero_shot_score_list + np.log(_rank/l)
+                popu_zero_shot_score_list = popu_zero_shot_score_list + np.log(_rank / l)
             else:
-                popu_zero_shot_score_list = np.log(_rank/l)
+                popu_zero_shot_score_list = np.log(_rank / l)
         popu_zero_shot_score_list = popu_zero_shot_score_list.tolist()
         popu_structure_list.append(random_structure_str)
         popu_latency_list.append(the_latency)
