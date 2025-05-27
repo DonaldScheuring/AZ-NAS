@@ -17,7 +17,7 @@ set -e
 # fi
 
 metric=AZ_NAS
-population_size=1024
+population_size=500
 evolution_max_iter=1e5
 
 gpu=0
@@ -32,10 +32,10 @@ evolution_max_iter=$(printf "%.0f" $evolution_max_iter)
 
 resolution=224
 budget_flops=450e6
-max_layers=14
-# population_size=1024
+max_layers=3
+# population_size=248
 epochs=150
-# evolution_max_iter=100000
+# evolution_max_iter=10000
 
 echo "SuperConvK3BNRELU(3,8,2,1)SuperResIDWE6K3(8,32,2,8,1)SuperResIDWE6K3(32,48,2,32,1)\
 SuperResIDWE6K3(48,96,2,48,1)SuperResIDWE6K3(96,128,2,96,1)\
@@ -46,7 +46,7 @@ python evolution_search_az.py --gpu ${gpu} \
   --search_space SearchSpace/search_space_IDW_fixfc.py \
   --budget_flops ${budget_flops} \
   --max_layers ${max_layers} \
-  --batch_size 64 \
+  --batch_size 1 \
   --input_image_size ${resolution} \
   --plainnet_struct_txt ${save_dir}/init_plainnet.txt \
   --num_classes 1000 \
@@ -58,7 +58,7 @@ python evolution_search_az.py --gpu ${gpu} \
   --rand_input True \
   --search_no_res False \
   --seed ${seed} \
-  --datapath /dataset/ILSVRC2012/
+  --datapath $(pwd)/datasets/ILSVRC2012  
 
 python analyze_model.py \
   --input_image_size 224 \

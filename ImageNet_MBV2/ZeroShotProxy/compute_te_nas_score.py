@@ -248,6 +248,15 @@ def get_ntk_n(networks, recalbn=0, train_mode=False, num_batch=None,
 
 
 def compute_NTK_score(gpu, model, resolution, batch_size):
+    with torch.no_grad():
+        for p in model.parameters():
+            if p.dtype == torch.float64:
+                p.data = p.data.float()
+        for b in model.buffers():
+            if b.dtype == torch.float64:
+                b.data = b.data.float()
+
+
     ntk_score = get_ntk_n([model], recalbn=0, train_mode=True, num_batch=1,
                            batch_size=batch_size, image_size=resolution, gpu=gpu)[0]
     return -1 * ntk_score

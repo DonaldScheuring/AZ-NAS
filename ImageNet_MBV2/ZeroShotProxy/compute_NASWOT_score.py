@@ -53,6 +53,15 @@ def compute_nas_score(gpu, model, resolution, batch_size):
         model = model.cuda(gpu)
 
     network_weight_gaussian_init(model)
+    
+    with torch.no_grad():
+        for p in model.parameters():
+            if p.dtype == torch.float64:
+                p.data = p.data.float()
+        for b in model.buffers():
+            if b.dtype == torch.float64:
+                b.data = b.data.float()
+
     input = torch.randn(size=[batch_size, 3, resolution, resolution])
     if gpu is not None:
         input = input.cuda(gpu)

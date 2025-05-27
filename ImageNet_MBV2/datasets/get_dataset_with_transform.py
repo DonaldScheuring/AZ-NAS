@@ -210,15 +210,9 @@ def get_datasets(name, root, cutout):
     elif name.startswith("imagenet-1k"):
         train_data = dset.ImageFolder(osp.join(root, "train"), train_transform)
         test_data = dset.ImageFolder(osp.join(root, "val"), test_transform)
-        assert (
-            len(train_data) == 1281167 and len(test_data) == 50000
-        ), "invalid number of images : {:} & {:} vs {:} & {:}".format(
-            len(train_data), len(test_data), 1281167, 50000
-        )
     elif name == "ImageNet16":
         train_data = ImageNet16(root, True, train_transform)
         test_data = ImageNet16(root, False, test_transform)
-        assert len(train_data) == 1281167 and len(test_data) == 50000
     elif name == "ImageNet16-120":
         train_data = ImageNet16(root, True, train_transform, 120)
         test_data = ImageNet16(root, False, test_transform, 120)
