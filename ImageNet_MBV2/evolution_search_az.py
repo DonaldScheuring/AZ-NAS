@@ -16,6 +16,13 @@ import Masternet
 import PlainNet
 from xautodl import datasets
 import time
+from tqdm import tqdm
+
+
+for i in tqdm(range(0, 100), desc="Text You Want"):
+    sleep(0.1)
+
+
 
 from ZeroShotProxy import *
 import benchmark_network_latency
@@ -301,8 +308,7 @@ def main(args, argv):
     start_timer = time.time()
     lossfunc = nn.CrossEntropyLoss().cuda()
 
-    loop_count = 0
-    while loop_count < args.evolution_max_iter:
+    for loop_count in tqdm(range(0, args.evolution_max_iter), desc="Evolution iterations"):
         # mutate or new struct
         if len(popu_structure_list) <= 10:
             random_structure_str = get_new_random_structure_str(
@@ -469,6 +475,7 @@ if __name__=='__main__':
 
     if args.seed is not None:
         logging.info(f"The seed number is set to {args.seed}")
+        logging.info("This is a test from Andrew")
         random.seed(args.seed)
         np.random.seed(args.seed)
         torch.manual_seed(args.seed)
