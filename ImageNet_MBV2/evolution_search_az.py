@@ -19,10 +19,6 @@ import time
 from tqdm import tqdm
 
 
-for i in tqdm(range(0, 100), desc="Text You Want"):
-    sleep(0.1)
-
-
 
 from ZeroShotProxy import *
 import benchmark_network_latency
