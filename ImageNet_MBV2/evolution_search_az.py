@@ -202,7 +202,7 @@ def compute_all_proxies(AnyPlainNet, random_structure_str, gpu, args, trainloade
     info = compute_az_nas_score.compute_nas_score(model=net, gpu=gpu, trainloader=trainloader, resolution=args.input_image_size, batch_size=args.batch_size)
 
     #proxies
-    info['zen'] = compute_zen_score.compute_nas_score(gpu, net, args.gamma, args.input_image_size, args.batch_size, repeat=1)['avg_nas_score']
+    info['zen'] = compute_zen_score.compute_nas_score(gcompute_allpu, net, args.gamma, args.input_image_size, args.batch_size, repeat=1)['avg_nas_score']
     info['gradnorm'] = compute_gradnorm_score.compute_nas_score(gpu, net, args.input_image_size, args.batch_size)
     info['syncflow'] = compute_syncflow_score.do_compute_nas_score(gpu, net, args.input_image_size, args.batch_size)
 
