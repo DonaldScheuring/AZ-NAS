@@ -40,7 +40,7 @@ class ArchEvaluator:
         torch.cuda.empty_cache()
         torch.cuda.reset_peak_memory_stats()
 
-        network = TinyNetwork(self.args.channel, self.args.num_cells, arch, self.args.class_num)
+        network = TinyNetwork(self.args.channel, self.args.num_cells, arch, self.class_num)
         network = network.to(self.device)
         network.train()
 
