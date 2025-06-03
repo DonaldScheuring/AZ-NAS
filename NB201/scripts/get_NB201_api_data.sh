@@ -5,4 +5,7 @@
 #https://drive.google.com/file/d/17_saCsj_krKjlCBLOJEpNtzPXArMCqxU/view?usp=drive_link
 #id: 17_saCsj_krKjlCBLOJEpNtzPXArMCqxU
 
+DATA_DIR = "api_data"
+mkdir -p "$DATA_DIR"
+
 gdown --id 17_saCsj_krKjlCBLOJEpNtzPXArMCqxU -O api_data/NATS-tss-v1_0-3ffb9-simple.tar
