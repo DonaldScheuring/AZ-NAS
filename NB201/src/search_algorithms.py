@@ -10,7 +10,7 @@ class BaseSearcher:
         self.evaluator = evaluator
         self.search_space = search_space
         self.max_nodes = max_nodes
-        self.op_names = search_space.get_op_names()
+        self.op_names = search_space
         self.dataset = dataset
         self.logger = logger
         self.best_arch = None
