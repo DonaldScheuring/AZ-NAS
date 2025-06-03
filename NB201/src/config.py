@@ -13,7 +13,8 @@ def get_args():
     parser.add_argument("--num_cells", type=int, default=5, help="The number of cells in one stage.")
     parser.add_argument("--affine", type=int, default=1, choices=[0, 1], help="Whether use affine=True or False in the BN layer.")
     parser.add_argument("--track_running_stats", type=int, default=0, choices=[0, 1], help="Whether use track_running_stats or not in the BN layer.")
-
+    parser.add_argument("--config_path", type=str, default='./configs/nas-benchmark/algos/weight-sharing.config', help="The path to the configuration.")
+    
     # Zero-cost Proxy
     parser.add_argument('--zero_shot_score', type=str, default='az_nas', choices=['az_nas','zico','zen','gradnorm','naswot','synflow','snip','grasp','te_nas','gradsign'], help="Zero-cost proxy score to use.")
 
