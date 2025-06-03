@@ -1,17 +1,18 @@
 import random
-from xautodl.models.cell_searchs.genotypes import Structure
+from xautodl.models.cell_searchs.genotypes import Structure # Assuming this is the correct path for the Structure class
 
 class ArchSampler:
-    """Provides methods for sampling neural architectures."""
+    """Provides methods for sampling, mutating, and crossing over neural architectures.
+       Architectures are represented as xautodl.models.cell_searchs.genotypes.Structure objects.
+    """
 
     @staticmethod
     def random_genotype(max_nodes, op_names):
-        """Generates a random architecture genotype."""
+        """Generates a random architecture genotype (Structure object)."""
         genotypes = []
         for i in range(1, max_nodes):
             xlist = []
             for j in range(i):
-                node_str = "{:}<-{:}".format(i, j)
                 op_name = random.choice(op_names)
                 xlist.append((op_name, j))
             genotypes.append(tuple(xlist))
@@ -19,36 +20,70 @@ class ArchSampler:
         return arch
 
     @staticmethod
-    def mutate_arch(arch, op_names, max_nodes):
-        """Applies a mutation to an architecture genotype."""
-        new_genotypes = []
-        for i in range(len(arch.genotypes)):
-            node_ops = list(arch.genotypes[i])
-            # Randomly select a connection to mutate
-            idx_to_mutate = random.randint(0, len(node_ops) - 1)
-            # Change the operation for the selected connection
-            original_op, original_node = node_ops[idx_to_mutate]
+    def mutate_arch(arch: Structure, op_names, max_nodes) -> Structure:
+        """Applies a mutation to an architecture genotype (Structure object)."""
+        # Convert Structure to its string representation for easier manipulation
+        arch_str = arch.tostr()
+        nodes_str = arch_str.split('+') # Each element is a node's connections, e.g., "|op1~0|op2~1|"
+
+        # Select a random node to mutate
+        node_idx_to_mutate = random.randint(0, len(nodes_str) - 1)
+        target_node_str = nodes_str[node_idx_to_mutate]
+
+        # Extract individual operations and their connections from the target node
+        connections = [conn.split('~') for conn in target_node_str.strip('|').split('|') if conn]
+        if not connections: # Handle cases where a node might be empty (shouldn't happen with current random_genotype)
+            return arch # No connections to mutate
+
+        # Select a random connection within the chosen node to mutate
+        conn_idx_to_mutate = random.randint(0, len(connections) - 1)
+        original_op = connections[conn_idx_to_mutate][0]
+        original_input_node = connections[conn_idx_to_mutate][1]
+
+        # Choose a new operation
+        new_op = random.choice(op_names)
+        while new_op == original_op: # Ensure a different operation is chosen
             new_op = random.choice(op_names)
-            while new_op == original_op: # Ensure a different operation is chosen
-                new_op = random.choice(op_names)
-            node_ops[idx_to_mutate] = (new_op, original_node)
-            new_genotypes.append(tuple(node_ops))
-        return Structure(new_genotypes)
+
+        # Update the connection
+        connections[conn_idx_to_mutate] = [new_op, original_input_node]
+
+        # Reconstruct the target node string
+        new_target_node_str_parts = ["{}~{}".format(op, idx) for op, idx in connections]
+        new_target_node_str = "|{}|".format("|".join(new_target_node_str_parts))
+
+        # Update the main architecture string
+        nodes_str[node_idx_to_mutate] = new_target_node_str
+        new_arch_str = "+".join(nodes_str)
+
+        # Convert back to Structure object
+        return Structure.str2structure(new_arch_str)
 
     @staticmethod
-    def crossover_archs(parent1_arch, parent2_arch):
-        """Performs crossover between two architecture genotypes."""
-        # Simple one-point crossover of the genotype list
-        genotypes1 = list(parent1_arch.genotypes)
-        genotypes2 = list(parent2_arch.genotypes)
+    def crossover_archs(parent1_arch: Structure, parent2_arch: Structure) -> tuple[Structure, Structure]:
+        """Performs crossover between two architecture genotypes (Structure objects)."""
+        parent1_str = parent1_arch.tostr()
+        parent2_str = parent2_arch.tostr()
 
-        min_len = min(len(genotypes1), len(genotypes2))
-        if min_len < 2: # Cannot perform crossover if genotypes are too short
+        nodes1 = parent1_str.split('+')
+        nodes2 = parent2_str.split('+')
+
+        min_nodes = min(len(nodes1), len(nodes2))
+        if min_nodes < 2: # Cannot perform meaningful crossover if not enough nodes
             return parent1_arch, parent2_arch # Return original parents
 
-        crossover_point = random.randint(1, min_len - 1)
+        crossover_point = random.randint(1, min_nodes - 1) # Crossover point between nodes
 
-        child1_genotypes = genotypes1[:crossover_point] + genotypes2[crossover_point:]
-        child2_genotypes = genotypes2[:crossover_point] + genotypes1[crossover_point:]
+        # Perform crossover on the list of node strings
+        child1_nodes = nodes1[:crossover_point] + nodes2[crossover_point:]
+        child2_nodes = nodes2[:crossover_point] + nodes1[crossover_point:]
 
-        return Structure(child1_genotypes), Structure(child2_genotypes)
+        # Reconstruct full architecture strings
+        child1_str = "+".join(child1_nodes)
+        child2_str = "+".join(child2_nodes)
+
+        # Convert back to Structure objects
+        child1_arch = Structure.str2structure(child1_str)
+        child2_arch = Structure.str2structure(child2_str)
+
+        return child1_arch, child2_arch
