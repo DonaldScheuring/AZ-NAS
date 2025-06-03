@@ -24,12 +24,12 @@ class ArchEvaluator:
 
     def _setup_data_loaders(self):
         """Sets up the necessary data loaders."""
-        train_data, valid_data, xshape, class_num = get_datasets(self.dataset, self.data_path, -1)
+        train_data, valid_data, xshape, class_num = get_datasets(self.args.dataset, self.args.data_path, -1)
         self.class_num = class_num
         config = load_config(self.args.config_path, {"class_num": class_num, "xshape": xshape}, self.logger)
         self.search_loader, self.train_loader, self.valid_loader = get_nas_search_loaders(
-            train_data, valid_data, self.dataset, "./configs/nas-benchmark/",
-            (self.batch_size, config.test_batch_size), self.workers
+            train_data, valid_data, self.args.dataset, "./configs/nas-benchmark/",
+            (self.args.batch_size, config.test_batch_size), self.args.workers
         )
         self.input_, self.target_ = next(iter(self.search_loader))
         self.resolution = self.input_.size(2)
@@ -50,7 +50,7 @@ class ArchEvaluator:
             gpu=self.device.index,
             trainloader=trainloader,
             resolution=self.resolution,
-            batch_size=self.batch_size
+            batch_size=self.args.batch_size
         )
         return info_dict[self.zero_shot_score_name.lower()] # Return the specific score
 
@@ -61,7 +61,7 @@ class ArchEvaluator:
             'cifar100': 'cifar100',
             'ImageNet16-120': 'ImageNet16-120'
         }
-        api_dataset_name = dataset_map.get(self.dataset, 'cifar10') # Default to cifar10 if not found
+        api_dataset_name = dataset_map.get(self.args.dataset, 'cifar10') # Default to cifar10 if not found
 
         index = api.query_index_by_arch(arch)
         api._prepare_info(index)
