@@ -53,7 +53,7 @@ class ArchEvaluator:
             resolution=self.resolution,
             batch_size=self.args.batch_size
         )
-        return info_dict
+        return info_dict[self.args.zero_shot_score.lower()]
 
     def get_accuracy_from_api(self, api, arch):
         """Retrieves validation accuracy from NAS-Bench-201 API."""
