@@ -8,3 +8,5 @@
 mkdir -p api_data
 
 gdown --id 17_saCsj_krKjlCBLOJEpNtzPXArMCqxU -O api_data/NATS-tss-v1_0-3ffb9-simple.tar
+
+tar -xvf api_data/NATS-tss-v1_0-3ffb9-simple.tar -C api_data/
