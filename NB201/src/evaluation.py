@@ -10,15 +10,11 @@ from ZeroShotProxy import * # Assuming this module defines compute_*_score funct
 class ArchEvaluator:
     """Handles the evaluation of neural architectures using zero-cost proxies and NAS-Bench-201 API."""
 
-    def __init__(self, device, zero_shot_score, dataset, data_path, batch_size, workers, channel, num_cells, class_num=None, real_input_metrics=None):
+    def __init__(self, device, logger, args, class_num=None, real_input_metrics=None):
         self.device = device
-        self.zero_shot_score_name = zero_shot_score
-        self.dataset = dataset
-        self.data_path = data_path
-        self.batch_size = batch_size
-        self.workers = workers
-        self.channel = channel
-        self.num_cells = num_cells
+        self.logger = logger
+        self.args = args
+        self.class_num = class_num
         self.real_input_metrics = real_input_metrics if real_input_metrics is not None else []
 
         self._setup_data_loaders()
@@ -30,7 +26,7 @@ class ArchEvaluator:
         """Sets up the necessary data loaders."""
         train_data, valid_data, xshape, class_num = get_datasets(self.dataset, self.data_path, -1)
         self.class_num = class_num
-        config = load_config('./configs/nas-benchmark/algos/weight-sharing.config', {"class_num": class_num, "xshape": xshape})
+        config = load_config(self.args.config_path, {"class_num": class_num, "xshape": xshape}, self.logger)
         self.search_loader, self.train_loader, self.valid_loader = get_nas_search_loaders(
             train_data, valid_data, self.dataset, "./configs/nas-benchmark/",
             (self.batch_size, config.test_batch_size), self.workers

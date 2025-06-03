@@ -18,13 +18,8 @@ def main():
 
     evaluator = ArchEvaluator(
         device=device,
-        zero_shot_score=args.zero_shot_score,
-        dataset=args.dataset,
-        data_path=args.data_path,
-        batch_size=args.batch_size, # Assuming batch_size is now in args
-        workers=args.workers,
-        channel=args.channel,
-        num_cells=args.num_cells,
+        logger=logger,
+        args = args,
         class_num=None, # Will be set internally by ArchEvaluator
         real_input_metrics=['zico', 'snip', 'grasp', 'te_nas', 'gradsign']
     )
