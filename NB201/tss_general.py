@@ -262,3 +262,7 @@ def main():
     best_arch = archs[best_idx]
     if api is not None:
         print("{:}".format(api.query_by_arch(best_arch, "200")))
+
+
+if __name__ == "__main__":
+    main()
