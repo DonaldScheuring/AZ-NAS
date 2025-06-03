@@ -18,10 +18,10 @@ class ArchEvaluator:
         self.real_input_metrics = real_input_metrics if real_input_metrics is not None else []
 
         self._setup_data_loaders()
-        score_fn_name = "compute_{}_score".format(args.zero_shot_score.lower())
+        score_fn_name = "compute_{}_score".format(self.args.zero_shot_score.lower())
         self.score_fn = globals().get(score_fn_name)
         if not self.score_fn:
-            raise ValueError(f"Zero-shot score function '{self.zero_shot_score_name}' not found in ZeroShotProxy.py")
+            raise ValueError(f"Zero-shot score function '{self.args.zero_shot_score}' not found in ZeroShotProxy.py")
 
     def _setup_data_loaders(self):
         """Sets up the necessary data loaders."""
@@ -40,11 +40,11 @@ class ArchEvaluator:
         torch.cuda.empty_cache()
         torch.cuda.reset_peak_memory_stats()
 
-        network = TinyNetwork(self.channel, self.num_cells, arch, self.class_num)
+        network = TinyNetwork(self.args.channel, self.args.num_cells, arch, self.args.class_num)
         network = network.to(self.device)
         network.train()
 
-        trainloader = self.train_loader if self.zero_shot_score_name.lower() in self.real_input_metrics else None
+        trainloader = self.train_loader if self.args.zero_shot_score.lower() in self.real_input_metrics else None
 
         info_dict = self.score_fn.compute_nas_score(
             network,
