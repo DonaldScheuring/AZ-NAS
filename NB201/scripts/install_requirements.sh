@@ -3,4 +3,4 @@
 # cd "$SCRIPT_DIR" || exit 1
 
 # echo "$SCRIPT_DIR"
-pip install -r requirements.txt
+pip install -r requirements_no_versions.txt
