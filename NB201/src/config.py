@@ -27,7 +27,7 @@ def get_args():
     parser.add_argument("--print_freq", type=int, default=200, help="Print frequency (default: 200).")
 
     # Search Algorithm specific arguments
-    parser.add_argument("--search_algorithm", type=str, default='evolutionary', choices=['random', 'evolutionary'], help="Choose the NAS search algorithm.")
+    parser.add_argument("--search_algorithm", type=str, default='random', choices=['random', 'evolutionary'], help="Choose the NAS search algorithm.")
 
     # Random Search specific
     parser.add_argument("--n_samples", type=int, default=3000, help="Number of architectures to sample for random search.")
@@ -39,7 +39,7 @@ def get_args():
     parser.add_argument("--crossover_rate", type=float, default=0.8, help="Crossover rate for evolutionary algorithm.")
     parser.add_argument("--batch_size", type=int, default=256, help="Batch size for data loaders.") # Added this as it was implicitly used before
 
-    args = parser.parse_args(args=[]) # For Jupyter compatibility, remove `args=[]` for command line
+    args = parser.parse_args() # For Jupyter compatibility, remove `args=[]` for command line
 
     if args.rand_seed is None or args.rand_seed < 0:
         args.rand_seed = random.randint(1, 100000)
