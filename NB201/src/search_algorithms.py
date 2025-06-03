@@ -68,12 +68,20 @@ class EvolutionarySearch(BaseSearcher):
                 score = self.evaluator.compute_zero_cost_score(arch)
                 fitness_scores.append(score)
 
-            # Convert scores to probabilities (for selection), handle negative scores if any
-            fitness_scores = np.array(fitness_scores)
+            fitness_scores = np.array(fitness_scores, dtype=np.float64)
+            fitness_scores = np.nan_to_num(fitness_scores, nan=0.0, posinf=0.0, neginf=0.0)
+
             min_score = np.min(fitness_scores)
-            if min_score < 0: # Shift scores to be non-negative
+            if min_score < 0:
                 fitness_scores = fitness_scores - min_score
-            selection_probs = fitness_scores / np.sum(fitness_scores)
+
+            total_score = np.sum(fitness_scores)
+            if total_score <= 0:
+                selection_probs = np.ones_like(fitness_scores) / len(fitness_scores)
+            else:
+                selection_probs = fitness_scores / total_score
+            
+            self.logger.log(f"Selection probs: {selection_probs}")
 
             # Update best architecture based on actual validation accuracy (optional, but good for tracking)
             # For real-world use, you might evaluate only the best architecture from the population with full training
