@@ -19,7 +19,7 @@ class ArchEvaluator:
 
         self._setup_data_loaders()
         score_fn_name = "compute_{}_score".format(args.zero_shot_score.lower())
-        score_fn = globals().get(score_fn_name)
+        self.score_fn = globals().get(score_fn_name)
         if not self.score_fn:
             raise ValueError(f"Zero-shot score function '{self.zero_shot_score_name}' not found in ZeroShotProxy.py")
 
