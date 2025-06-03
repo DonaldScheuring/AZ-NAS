@@ -31,7 +31,7 @@ class ArchEvaluator:
             train_data, valid_data, self.args.dataset, "./configs/nas-benchmark/",
             (self.args.batch_size, config.test_batch_size), self.args.workers
         )
-        self.input_, self.target_ = next(iter(self.search_loader))
+        self.input_, self.target_ = next(iter(self.train_loader))
         self.resolution = self.input_.size(2)
 
     def compute_zero_cost_score(self, arch):
