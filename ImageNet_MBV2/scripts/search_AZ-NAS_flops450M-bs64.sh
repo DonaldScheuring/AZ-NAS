@@ -18,7 +18,7 @@ set -e
 
 metric=AZ_NAS
 population_size=500
-evolution_max_iter=1e5
+evolution_max_iter=1e3
 
 gpu=0
 seed=123

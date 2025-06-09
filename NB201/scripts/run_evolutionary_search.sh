@@ -1,0 +1,1 @@
+python -m src.main --search_algorithm evolutionary --population_size 50 --generations 20 --mutation_rate 0.1 --crossover_rate 0.8 --zero_shot_score zen --dataset cifar10 --api_data_path ./api_data/NATS-tss-v1_0-3ffb9-simple/

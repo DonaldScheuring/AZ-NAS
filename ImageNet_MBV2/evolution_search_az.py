@@ -16,6 +16,9 @@ import Masternet
 import PlainNet
 from xautodl import datasets
 import time
+from tqdm import tqdm
+
+
 
 from ZeroShotProxy import *
 import benchmark_network_latency
@@ -199,7 +202,7 @@ def compute_all_proxies(AnyPlainNet, random_structure_str, gpu, args, trainloade
     info = compute_az_nas_score.compute_nas_score(model=net, gpu=gpu, trainloader=trainloader, resolution=args.input_image_size, batch_size=args.batch_size)
 
     #proxies
-    info['zen'] = compute_zen_score.compute_nas_score(gpu, net, args.gamma, args.input_image_size, args.batch_size, repeat=1)['avg_nas_score']
+    info['zen'] = compute_zen_score.compute_nas_score(gcompute_allpu, net, args.gamma, args.input_image_size, args.batch_size, repeat=1)['avg_nas_score']
     info['gradnorm'] = compute_gradnorm_score.compute_nas_score(gpu, net, args.input_image_size, args.batch_size)
     info['syncflow'] = compute_syncflow_score.do_compute_nas_score(gpu, net, args.input_image_size, args.batch_size)
 
@@ -301,8 +304,7 @@ def main(args, argv):
     start_timer = time.time()
     lossfunc = nn.CrossEntropyLoss().cuda()
 
-    loop_count = 0
-    while loop_count < args.evolution_max_iter:
+    for loop_count in tqdm(range(0, args.evolution_max_iter), desc="Evolution iterations"):
         # mutate or new struct
         if len(popu_structure_list) <= 10:
             random_structure_str = get_new_random_structure_str(
@@ -469,6 +471,7 @@ if __name__=='__main__':
 
     if args.seed is not None:
         logging.info(f"The seed number is set to {args.seed}")
+        logging.info("This is a test from Andrew")
         random.seed(args.seed)
         np.random.seed(args.seed)
         torch.manual_seed(args.seed)
