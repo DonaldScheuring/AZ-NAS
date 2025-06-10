@@ -59,7 +59,9 @@ parser.add_argument("--print_freq", type=int, default=200, help="print frequency
 parser.add_argument("--gpu", type=int, default=0, help="")
 parser.add_argument("--workers", type=int, default=4, help="number of data loading workers")
 parser.add_argument("--api_data_path", type=str, default="./api_data/NATS-tss-v1_0-3ffb9-simple/", help="")
-parser.add_argument("--save_dir", type=str, default='./results/tmp', help="Folder to save checkpoints and log.")
+
+parser.add_argument("--save_dir", type=str, default='./results', help="Folder to save results to")
+parser.add_argument("--save_checkpoints_dir", type=str, default='./results/tmp', help="Folder to save checkpoints and log.")
 parser.add_argument('--zero_shot_score', type=str, default='az_nas', choices=['az_nas','zico','zen','gradnorm','naswot','synflow','snip','grasp','te_nas','gradsign'])
 parser.add_argument("--rand_seed", type=int, default=1, help="manual seed (we use 1-to-5)")
 args = parser.parse_args(args=[])
@@ -271,8 +273,7 @@ def make_correlation_matrix(results: dict, api_valid_accs, api_flops):
 
     # Prepare metrics
     metrics = copy.deepcopy(results)
-    metrics['accuracy'] = api_valid_accs
-    metrics['complexity'] = api_flops
+
     keys = key_names = list(metrics.keys())
 
     # Build correlation matrix
@@ -303,8 +304,11 @@ def make_correlation_matrix(results: dict, api_valid_accs, api_flops):
     plt.yticks(rotation=0, fontsize=10)
     plt.title("Kendall Tau Correlation Matrix", fontsize=14, pad=20)
     plt.tight_layout()
-    plt.savefig("correlation_matrix.png", dpi=300)
-    #plt.show()
+
+    filepath = os.path.join(xargs.save_dir, "figs")
+    if not os.path.exists(filepath):
+        os.makedirs(filepath)
+    plt.savefig(os.path.join(filepath,"correlation_matrix.png"), dpi=300)
 
 #### Visualize scatter plots
 def visualize_proxy_cmap(x, y, title, save_name, ref_rank=None):
@@ -319,8 +323,11 @@ def visualize_proxy_cmap(x, y, title, save_name, ref_rank=None):
     plt.yticks(fontsize=10)
     plt.colorbar()
     plt.title(title, fontsize=20)
-    plt.savefig('{}.png'.format(save_name))
-    #plt.show()
+
+    filepath = os.path.join(xargs.save_dir, "figs/scatter_plots")
+    if not os.path.exists(filepath):
+        os.makedirs(filepath)
+    plt.savefig(os.path.join(filepath,'{}.png'.format(save_name)), dpi=300)
 
 def get_proxy_scatter_plots(results, api_valid_accs, api_flops):
     
@@ -330,8 +337,35 @@ def get_proxy_scatter_plots(results, api_valid_accs, api_flops):
 
     # Put the flops in the metrics dictionary for the next plot
     results.update({'FLOPs':api_flops})
+    # Add ground_truth accuracy to results
+    results.update({'accuracy':api_valid_accs})
 
-    # --------- Proxy vs Proxy Correlations (First order)
+    # Also put TE-NAS proxy in dictionary
+    rank_agg = None
+    for k in results.keys():
+        if "_tenas" in k:
+            print(k)
+            if rank_agg is None:
+                rank_agg = stats.rankdata(results[k])
+            else:
+                rank_agg = rank_agg + stats.rankdata(results[k]) # NOTE: how does adding ranks work?
+    results.update({"TE-NAS":rank_agg})
+
+
+    # Also put AZ-NAS proxy in dictionary
+    rank_agg = None
+    l = len(api_flops)
+    rank_agg = np.log(stats.rankdata(api_flops) / l)
+    for k in results.keys():    
+        if "_az" in k or k=="FLOPs": # NOTE: need to only extract out AZ_nas proxies, not all of them
+            print(k)
+            if rank_agg is None:
+                rank_agg = np.log( stats.rankdata(results[k]) / l)
+            else:
+                rank_agg = rank_agg + np.log( stats.rankdata(results[k]) / l)
+    results.update({"AZ-NAS":rank_agg})
+
+    # --------- Proxy vs Proxy Correlations ----------------
     for k in results.keys(): 
         print(f"Processing proxy: {k}")
         x = stats.rankdata(results[k])
@@ -347,39 +381,13 @@ def get_proxy_scatter_plots(results, api_valid_accs, api_flops):
         # Store correlations for the bar chart
         proxy_names.append(k)
         kendall_correlations.append(kendalltau[0])
-        pearson_correlations.append(pearsonr[0])
-
-    # ----------- AZ-NAS proxy --------------
-    rank_agg = None
-    l = len(api_flops)
-    rank_agg = np.log(stats.rankdata(api_flops) / l)
-    for k in results.keys():    
-        if "_az" in k or k=="FLOPs": # NOTE: need to only extract out AZ_nas proxies, not all of them
-            print(k)
-            if rank_agg is None:
-                rank_agg = np.log( stats.rankdata(results[k]) / l)
-            else:
-                rank_agg = rank_agg + np.log( stats.rankdata(results[k]) / l)
+        pearson_correlations.append(pearsonr[0])    
 
     # NOTE: This is for determining the best arch based on AZ-NAS
     # best_idx = np.argmax(rank_agg)
     # best_arch, acc = archs[best_idx], api_valid_accs[best_idx]
     # if api is not None:
     #     print("{:}".format(api.query_by_arch(best_arch, "200")))
-
-    # AZ-NAS scatter plot 
-    x = stats.rankdata(rank_agg)
-    x_agg = x
-    y = stats.rankdata(api_valid_accs)
-    kendalltau = stats.kendalltau(x, y)
-    spearmanr = stats.spearmanr(x, y)
-    pearsonr = stats.pearsonr(x, y)
-    visualize_proxy_cmap(x,y,r"AZ-NAS ($\tau$={0:.3f}, $\rho$={1:.3f})".format(kendalltau[0], spearmanr[0]), 'AZ-NAS')
-
-    # Store correlations for the bar chart
-    proxy_names.append("AZ-NAS")
-    kendall_correlations.append(kendalltau[0])
-    pearson_correlations.append(pearsonr[0])
 
 
     # ----------- Bar Chart for Proxy vs True accuracy -----------
@@ -406,8 +414,11 @@ def get_proxy_scatter_plots(results, api_valid_accs, api_flops):
     plt.legend(fontsize=10)
     plt.grid(axis='y', alpha=0.75)
     plt.tight_layout() # Adjust layout to prevent labels from overlapping
-    plt.savefig('proxy_correlations_bar_chart.png')
-    #plt.close() # Close the plot
+    
+    filepath = os.path.join(xargs.save_dir, "figs")
+    if not os.path.exists(filepath):
+        os.makedirs(filepath)
+    plt.savefig(os.path.join(filepath,"proxy_correlations_bar_chart.png"), dpi=300)
 
 def main():
 
@@ -416,7 +427,7 @@ def main():
     search_space = get_search_space(logger, xargs)
 
     ######### search across random N archs #########
-    archs, results = search_find_best(xargs, train_loader, search_space, n_samples=2)
+    archs, results = search_find_best(xargs, train_loader, search_space, n_samples=5)
 
 
     api_valid_accs, api_flops, api_params = [], [], []
@@ -435,8 +446,16 @@ def main():
         print("{:}".format(api.query_by_arch(best_arch, "200")))
 
 
-    make_correlation_matrix(results, api_valid_accs, api_flops)
+    # NOTE: get_proxy_scatter_plots modifies results and adds the aggregate proxies (AZ-NAS, TE-NAS) and api_valid_accs and api_flops
     get_proxy_scatter_plots(results, api_valid_accs, api_flops)
+
+    # TODO: After updating results, lets save all the whole dictionary (maybe json or picke file)
+    # TODO: should also save experiment settings from xargs
+
+
+
+
+    make_correlation_matrix(results, api_valid_accs, api_flops)
 
 
 if __name__ == "__main__":

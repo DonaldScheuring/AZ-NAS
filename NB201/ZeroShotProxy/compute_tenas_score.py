@@ -275,10 +275,15 @@ def compute_nas_score(model, gpu, trainloader, resolution, batch_size):
     RN = compute_RN_score(model=model, batch_size=batch_size, image_size=resolution, num_batch=1, gpu=gpu)
 
     info = {}
-    info['ntk_tenas'] = ntk
+
+    print(f"NTK from TENAS: {ntk}")
+    print(f"RN from TENAS: {RN}")
     
-    # NOTE: for some reason the RN score is empty? Commenting out for now because it's not important
-    # info['lr_tenas'] = RN
+    info['ntk_tenas'] = ntk
+    # NOTE: for some reason the RN score is a single number (scalar)
+    info['lr_tenas'] = RN
+    
+    # NOTE: Not sure why this is commented out here? Maybe they didn't want to aggregate too soon
     # info['ntk+RN'] = ntk+RN
 
     return info
