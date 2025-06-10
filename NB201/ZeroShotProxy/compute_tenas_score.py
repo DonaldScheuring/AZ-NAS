@@ -72,6 +72,10 @@ class LinearRegionCount(object):
                 else:
                     code_string += '0'
         if code_string not in self.ActPattern:
+
+    # if recalbn > 0:
+    #     network = recal_bn(network, xloader, recalbn, device)
+    #     if network_2 is not None:
             self.ActPattern[code_string] = 1
 
     def getLinearReginCount(self):
@@ -227,7 +231,7 @@ def get_ntk_n(networks, recalbn=0, train_mode=False, num_batch=None,
     for i in range(num_batch):
         # inputs = torch.randn((batch_size, 3, image_size, image_size), device=device)
         inputs = next(iter(trainloader))[0]
-        inputs = inputs.cuda(device=device, non_blocking=True)
+        #inputs = inputs.cuda(device=device, non_blocking=True)
         for net_idx, network in enumerate(networks):
             network.zero_grad()
             if gpu is not None:

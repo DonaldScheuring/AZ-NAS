@@ -108,13 +108,13 @@ def init_model(model, method='kaiming_norm_fanin'):
 
 def compute_nas_score(model, gpu, trainloader, resolution, batch_size, init_method = 'kaiming_norm_fanin', fp16=False):
     model.train()
-    model.cuda()
+    # model.cuda()
     info = {}
     nas_score_list = []
-    if gpu is not None:
-        device = torch.device('cuda:{}'.format(gpu))
-    else:
-        device = torch.device('cpu')
+    # if gpu is not None:
+    #     device = torch.device('cuda:{}'.format(gpu))
+    # else:
+    device = torch.device('cpu')
 
     if fp16:
         dtype = torch.half
@@ -124,6 +124,7 @@ def compute_nas_score(model, gpu, trainloader, resolution, batch_size, init_meth
     init_model(model, init_method)
 
     if trainloader == None:
+        print(f"Device: {device}")
         input_ = torch.randn(size=[batch_size, 3, resolution, resolution], device=device, dtype=dtype)
     else:
         input_ = next(iter(trainloader))[0].to(device)

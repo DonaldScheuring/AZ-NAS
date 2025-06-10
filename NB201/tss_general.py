@@ -9,6 +9,11 @@ import scipy.stats as stats
 import matplotlib.pyplot as plt
 import pickle
 
+import seaborn as sn
+import pandas as pd
+import matplotlib.pyplot as plt
+import copy
+
 # XAutoDL 
 from xautodl.config_utils import load_config, dict2config, configure2str
 from xautodl.datasets import get_datasets, get_nas_search_loaders
@@ -59,6 +64,11 @@ parser.add_argument('--zero_shot_score', type=str, default='az_nas', choices=['a
 parser.add_argument("--rand_seed", type=int, default=1, help="manual seed (we use 1-to-5)")
 args = parser.parse_args(args=[])
 
+# Removing te-nas because output is weird (has two items like AZ-NAS)
+proxy_list = ['aznas','zen','gradnorm','naswot','synflow','snip','grasp','gradsign', 'tenas', 'zico']
+
+
+
 if args.rand_seed is None or args.rand_seed < 0:
     args.rand_seed = random.randint(1, 100000)
 
@@ -71,7 +81,6 @@ logger = prepare_logger(args)
 
 
 
-assert torch.cuda.is_available(), "CUDA is not available."
 torch.backends.cudnn.enabled = True
 torch.backends.cudnn.benchmark = False
 torch.backends.cudnn.deterministic = True
@@ -79,9 +88,11 @@ torch.set_num_threads(xargs.workers)
 prepare_seed(xargs.rand_seed)
 logger = prepare_logger(args)
 
-device = torch.device('cuda:{}'.format(xargs.gpu))
+#device = torch.device('cuda:{}'.format(xargs.gpu))
+device = 'cpu'
 
-real_input_metrics = ['zico', 'snip', 'grasp', 'te_nas', 'gradsign']
+
+real_input_metrics = ['zico', 'snip', 'grasp', 'tenas', 'gradsign']
 
 # dataloaders
 train_data, valid_data, xshape, class_num = get_datasets(xargs.dataset, xargs.data_path, -1)
@@ -123,83 +134,100 @@ def random_genotype(max_nodes, op_names):
 
     
 def search_find_best(xargs, xloader, search_space, n_samples = None, archs = None):
-    logger.log("Searching with {}".format(xargs.zero_shot_score.lower()))
-    score_fn_name = "compute_{}_score".format(xargs.zero_shot_score.lower())
-    score_fn = globals().get(score_fn_name)
+    
+    # logger.log("Searching with {}".format(xargs.zero_shot_score.lower()))
+    # score_fn_name = "compute_{}_score".format(xargs.zero_shot_score.lower())
+    # score_fn = globals().get(score_fn_name)
+
+    # TODO: maybe this needs to go inside the proxy loop
     input_, target_ = next(iter(xloader))
     resolution = input_.size(2)
     batch_size = input_.size(0)
-    zero_shot_score_dict = None
+    zero_shot_score_dict = None # This is the dictionary for the 4 AZ-NAS scores
     arch_list = []
-    if xargs.zero_shot_score.lower() in real_input_metrics:
-        print('Use real images as inputs')
-        trainloader = train_loader
-    else:
-        print('Use random inputs')
-        trainloader = None
+
         
     if archs is None and n_samples is not None:
         all_time = []
         all_mem = []
-        start = torch.cuda.Event(enable_timing=True)
-        end = torch.cuda.Event(enable_timing=True)
+        #start = torch.cuda.Event(enable_timing=True)
+        #end = torch.cuda.Event(enable_timing=True)
         for i in tqdm.tqdm(range(n_samples)):
-            torch.cuda.empty_cache()
-            torch.cuda.reset_peak_memory_stats()
+            #torch.cuda.empty_cache()
+            #torch.cuda.reset_peak_memory_stats()
             # random sampling
             arch = random_genotype(xargs.max_nodes, search_space)
             network = TinyNetwork(xargs.channel, xargs.num_cells, arch, class_num)
             network = network.to(device)
             network.train()
 
-            start.record()
-            
+            #start.record()
+    
 
-            info_dict = score_fn.compute_nas_score(network, gpu=xargs.gpu, trainloader=trainloader, resolution=resolution, batch_size=batch_size)
+            # Each proxy returns a dictionary with the name and value of the proxy
+            scores_dict = {}
+            for proxy in proxy_list:
+                
+                if proxy in real_input_metrics:
+                    print('Use real images as inputs')
+                    trainloader = train_loader
+                else:
+                    print('Use random inputs')
+                    trainloader = None
 
-            end.record()
-            torch.cuda.synchronize()
-            all_time.append(start.elapsed_time(end))
+                score_fn_name = "compute_{}_score".format(proxy.lower())
+                score_fn = globals().get(score_fn_name)
+
+
+                score_dict = score_fn.compute_nas_score(network, None, trainloader=trainloader, resolution=resolution, batch_size=batch_size)
+                scores_dict.update(score_dict)
+
+
+            # AZ-NAS returns a dictionary with 4 entries 
+            # info_dict = score_fn.compute_nas_score(network, gpu=xargs.gpu, trainloader=trainloader, resolution=resolution, batch_size=batch_size)
+
+            #end.record()
+            #torch.cuda.synchronize()
+            #all_time.append(start.elapsed_time(end))
 #             all_mem.append(torch.cuda.max_memory_reserved())
-            all_mem.append(torch.cuda.max_memory_allocated())
+            #all_mem.append(torch.cuda.max_memory_allocated())
 
             arch_list.append(arch)
             if zero_shot_score_dict is None: # initialize dict
                 zero_shot_score_dict = dict()
-                for k in info_dict.keys():
+                for k in scores_dict.keys():
                     zero_shot_score_dict[k] = []
-            for k, v in info_dict.items():
+            for k, v in scores_dict.items():
                 zero_shot_score_dict[k].append(v)
 
-        logger.log("------Runtime------")
-        logger.log("All: {:.5f} ms".format(np.mean(all_time)))
-        logger.log("------Avg Mem------")
-        logger.log("All: {:.5f} GB".format(np.mean(all_mem)/1e9))
-        logger.log("------Max Mem------")
-        logger.log("All: {:.5f} GB".format(np.max(all_mem)/1e9))
+        # logger.log("------Runtime------")
+        # logger.log("All: {:.5f} ms".format(np.mean(all_time)))
+        # logger.log("------Avg Mem------")
+        # logger.log("All: {:.5f} GB".format(np.mean(all_mem)/1e9))
+        # logger.log("------Max Mem------")
+        # logger.log("All: {:.5f} GB".format(np.max(all_mem)/1e9))
         
     elif archs is not None and n_samples is None:
         all_time = []
         all_mem = []
-        start = torch.cuda.Event(enable_timing=True)
-        end = torch.cuda.Event(enable_timing=True)
+        #start = torch.cuda.Event(enable_timing=True)
+        #end = torch.cuda.Event(enable_timing=True)
         for arch in tqdm.tqdm(archs):
-            torch.cuda.empty_cache()
-            torch.cuda.reset_peak_memory_stats()
+            #torch.cuda.empty_cache()
+            #torch.cuda.reset_peak_memory_stats()
             network = TinyNetwork(xargs.channel, xargs.num_cells, arch, class_num)
             network = network.to(device)
             network.train()
 
-            start.record()
-            
+            #start.record()
 
             info_dict = score_fn.compute_nas_score(network, gpu=xargs.gpu, trainloader=trainloader, resolution=resolution, batch_size=batch_size)
 
-            end.record()
-            torch.cuda.synchronize()
-            all_time.append(start.elapsed_time(end))
+            #end.record()
+            # torch.cuda.synchronize()
+            #all_time.append(start.elapsed_time(end))
 #             all_mem.append(torch.cuda.max_memory_reserved())
-            all_mem.append(torch.cuda.max_memory_allocated())
+            #all_mem.append(torch.cuda.max_memory_allocated())
 
             arch_list.append(arch)
             if zero_shot_score_dict is None: # initialize dict
@@ -209,13 +237,14 @@ def search_find_best(xargs, xloader, search_space, n_samples = None, archs = Non
             for k, v in info_dict.items():
                 zero_shot_score_dict[k].append(v)
 
-        logger.log("------Runtime------")
-        logger.log("All: {:.5f} ms".format(np.mean(all_time)))
-        logger.log("------Avg Mem------")
-        logger.log("All: {:.5f} GB".format(np.mean(all_mem)/1e9))
-        logger.log("------Max Mem------")
-        logger.log("All: {:.5f} GB".format(np.max(all_mem)/1e9))
-        
+        # logger.log("------Runtime------")
+        # logger.log("All: {:.5f} ms".format(np.mean(all_time)))
+        # logger.log("------Avg Mem------")
+        # logger.log("All: {:.5f} GB".format(np.mean(all_mem)/1e9))
+        # logger.log("------Max Mem------")
+        # logger.log("All: {:.5f} GB".format(np.max(all_mem)/1e9))
+
+    print(f"Zero shot score dict: {zero_shot_score_dict}")    
     return arch_list, zero_shot_score_dict
 
 
@@ -238,6 +267,47 @@ def get_results_from_api(api, arch, dataset='cifar10'):
     return acc, flops, params
 
 
+def make_correlation_matrix(results: dict, api_valid_accs, api_flops):
+
+    # Prepare metrics
+    metrics = copy.deepcopy(results)
+    metrics['accuracy'] = api_valid_accs
+    metrics['complexity'] = api_flops
+    keys = key_names = list(metrics.keys())
+
+    # Build correlation matrix
+    matrix = np.zeros((len(keys), len(keys)))
+    for i in range(len(keys)):
+        for j in range(len(keys)):
+            x = stats.rankdata(metrics[keys[i]])
+            y = stats.rankdata(metrics[keys[j]])
+            kendalltau = stats.kendalltau(x, y)[0]
+            matrix[i, j] = kendalltau
+
+    # Convert to DataFrame
+    df_cm = pd.DataFrame(matrix, index=key_names, columns=key_names)
+
+    # Plot
+    plt.figure(figsize=(10, 10))
+    ax = sn.heatmap(df_cm,
+                     annot=True,
+                     fmt=".2f",
+                     cmap='GnBu',
+                     cbar_kws={"shrink": 0.8},
+                     square=True,
+                     linewidths=0.5,
+                     linecolor='gray',
+                     annot_kws={"size": 10})
+
+    plt.xticks(rotation=45, ha="right", fontsize=10)
+    plt.yticks(rotation=0, fontsize=10)
+    plt.title("Kendall Tau Correlation Matrix", fontsize=14, pad=20)
+    plt.tight_layout()
+    plt.savefig("correlation_matrix.png", dpi=300)
+    #plt.show()
+
+
+
 def main():
 
     api = get_nasbench201_api()
@@ -245,14 +315,14 @@ def main():
     search_space = get_search_space(logger, xargs)
 
     ######### search across random N archs #########
-    archs, results = search_find_best(xargs, train_loader, search_space, n_samples=3000)
+    archs, results = search_find_best(xargs, train_loader, search_space, n_samples=2)
 
 
     api_valid_accs, api_flops, api_params = [], [], []
     for a in archs:
         valid_acc, flops, params = get_results_from_api(api, a, 'cifar10')
-    #     valid_acc, flops, params = get_results_from_api(api, a, 'cifar100')
-    #     valid_acc, flops, params = get_results_from_api(api, a, 'ImageNet16-120')
+        #valid_acc, flops, params = get_results    plt.show()_from_api(api, a, 'cifar100')
+        #valid_acc, flops, params = get_results_from_api(api, a, 'ImageNet16-120')
         api_valid_accs.append(valid_acc)
         api_flops.append(flops)
         api_params.append(params)
@@ -262,6 +332,9 @@ def main():
     best_arch = archs[best_idx]
     if api is not None:
         print("{:}".format(api.query_by_arch(best_arch, "200")))
+
+
+    make_correlation_matrix(results, api_valid_accs, api_flops)
 
 
 if __name__ == "__main__":
