@@ -191,8 +191,8 @@ def compute_nas_score(model, gpu, trainloader, resolution, batch_size, init_meth
     trainability = np.mean(scores)
     #################################################
 
-    info['expressivity'] = float(expressivity) if not np.isnan(expressivity) else -np.inf
-    info['progressivity'] = float(progressivity) if not np.isnan(progressivity) else -np.inf
-    info['trainability'] = float(trainability) if not np.isnan(trainability) else -np.inf
+    info['expressivity_az'] = float(expressivity) if not np.isnan(expressivity) else -np.inf
+    info['progressivity_az'] = float(progressivity) if not np.isnan(progressivity) else -np.inf
+    info['trainability_az'] = float(trainability) if not np.isnan(trainability) else -np.inf
     # info['complexity'] = float(model.get_FLOPs(resolution)) # take info from api
     return info

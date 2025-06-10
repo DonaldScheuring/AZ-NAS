@@ -306,7 +306,108 @@ def make_correlation_matrix(results: dict, api_valid_accs, api_flops):
     plt.savefig("correlation_matrix.png", dpi=300)
     #plt.show()
 
+#### Visualize scatter plots
+def visualize_proxy_cmap(x, y, title, save_name, ref_rank=None):
+    if ref_rank is None:
+        ref_rank = x
+    plt.figure(figsize=(4.5*1.5,3*1.5))
+    plt.grid(True, alpha=0.3)
+    plt.scatter(x,y, linewidths=0.1, c=ref_rank, cmap='viridis_r')
+    plt.xlabel("Predicted network ranking", fontsize=12)
+    plt.ylabel("Ground-truth network ranking", fontsize=12)
+    plt.xticks(fontsize=10)
+    plt.yticks(fontsize=10)
+    plt.colorbar()
+    plt.title(title, fontsize=20)
+    plt.savefig('{}.png'.format(save_name))
+    #plt.show()
 
+def get_proxy_scatter_plots(results, api_valid_accs, api_flops):
+    
+    proxy_names = []
+    kendall_correlations = []
+    pearson_correlations = []
+
+    # Put the flops in the metrics dictionary for the next plot
+    results.update({'FLOPs':api_flops})
+
+    # --------- Proxy vs Proxy Correlations (First order)
+    for k in results.keys(): 
+        print(f"Processing proxy: {k}")
+        x = stats.rankdata(results[k])
+        y = stats.rankdata(api_valid_accs) # Assuming api_valid_accs is the true accuracy
+        
+        kendalltau = stats.kendalltau(x, y)
+        spearmanr = stats.spearmanr(x, y)
+        pearsonr = stats.pearsonr(x, y)
+        
+        # Visualize the scatter plot for each proxy
+        visualize_proxy_cmap(x, y, r"{0} ($\tau$={1:.3f}, $\rho$={2:.3f})".format(k, kendalltau[0], spearmanr[0]), k)
+        
+        # Store correlations for the bar chart
+        proxy_names.append(k)
+        kendall_correlations.append(kendalltau[0])
+        pearson_correlations.append(pearsonr[0])
+
+    # ----------- AZ-NAS proxy --------------
+    rank_agg = None
+    l = len(api_flops)
+    rank_agg = np.log(stats.rankdata(api_flops) / l)
+    for k in results.keys():    
+        if "_az" in k or k=="FLOPs": # NOTE: need to only extract out AZ_nas proxies, not all of them
+            print(k)
+            if rank_agg is None:
+                rank_agg = np.log( stats.rankdata(results[k]) / l)
+            else:
+                rank_agg = rank_agg + np.log( stats.rankdata(results[k]) / l)
+
+    # NOTE: This is for determining the best arch based on AZ-NAS
+    # best_idx = np.argmax(rank_agg)
+    # best_arch, acc = archs[best_idx], api_valid_accs[best_idx]
+    # if api is not None:
+    #     print("{:}".format(api.query_by_arch(best_arch, "200")))
+
+    # AZ-NAS scatter plot 
+    x = stats.rankdata(rank_agg)
+    x_agg = x
+    y = stats.rankdata(api_valid_accs)
+    kendalltau = stats.kendalltau(x, y)
+    spearmanr = stats.spearmanr(x, y)
+    pearsonr = stats.pearsonr(x, y)
+    visualize_proxy_cmap(x,y,r"AZ-NAS ($\tau$={0:.3f}, $\rho$={1:.3f})".format(kendalltau[0], spearmanr[0]), 'AZ-NAS')
+
+    # Store correlations for the bar chart
+    proxy_names.append("AZ-NAS")
+    kendall_correlations.append(kendalltau[0])
+    pearson_correlations.append(pearsonr[0])
+
+
+    # ----------- Bar Chart for Proxy vs True accuracy -----------
+    
+    plt.figure(figsize=(10, 6))
+    
+    # Set the positions for the bars
+    x_positions = np.arange(len(proxy_names))
+    width = 0.35 # Width of the bars
+    
+    # Plot Kendall's Tau bars
+    plt.bar(x_positions - width/2, kendall_correlations, width, label="Kendall's Tau", color='skyblue')
+    
+    # Plot Pearson correlation bars
+    plt.bar(x_positions + width/2, pearson_correlations, width, label="Pearson Correlation", color='lightcoral')
+    
+    plt.xlabel("Proxy", fontsize=12)
+    plt.ylabel("Correlation Coefficient", fontsize=12)
+    plt.title("Correlation of Proxies with True Accuracy", fontsize=16)
+    plt.xticks(x_positions, proxy_names, rotation=45, ha="right", fontsize=10)
+    plt.yticks(fontsize=10)
+    plt.ylim([-1, 1]) # Correlation coefficients range from -1 to 1
+    plt.axhline(0, color='gray', linewidth=0.8) # Add a line at y=0 for reference
+    plt.legend(fontsize=10)
+    plt.grid(axis='y', alpha=0.75)
+    plt.tight_layout() # Adjust layout to prevent labels from overlapping
+    plt.savefig('proxy_correlations_bar_chart.png')
+    #plt.close() # Close the plot
 
 def main():
 
@@ -335,6 +436,7 @@ def main():
 
 
     make_correlation_matrix(results, api_valid_accs, api_flops)
+    get_proxy_scatter_plots(results, api_valid_accs, api_flops)
 
 
 if __name__ == "__main__":
