@@ -442,15 +442,30 @@ def main():
     ######### search across random N archs #########
     archs, results = search_find_best(xargs, train_loader, search_space, xargs.n_samples)
 
+    
 
+    cifar100 = [[], [], []]
+    imageNet = [[], [], []]
     api_valid_accs, api_flops, api_params = [], [], []
     for a in archs:
+        # cifar 10
         valid_acc, flops, params = get_results_from_api(api, a, 'cifar10')
-        #valid_acc, flops, params = get_results    plt.show()_from_api(api, a, 'cifar100')
-        #valid_acc, flops, params = get_results_from_api(api, a, 'ImageNet16-120')
         api_valid_accs.append(valid_acc)
         api_flops.append(flops)
         api_params.append(params)
+
+        # cifar 100
+        valid_acc, flops, params = get_results_from_api(api, a, 'cifar100')
+        cifar100[0].append(valid_acc)
+        cifar100[1].append(flops)
+        cifar100[2].append(params)
+
+        valid_acc, flops, params = get_results_from_api(api, a, 'ImageNet16-120')
+        imageNet[0].append(valid_acc)
+        imageNet[1].append(flops)
+        imageNet[2].append(params)
+
+        
         
     print("Maximum acc: {}% \n Info".format(np.max(api_valid_accs)))
     best_idx = np.argmax(api_valid_accs)
@@ -472,11 +487,32 @@ def main():
     output_dir = os.path.join(xargs.save_dir, "figs")
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
+
+    # Cifar 10
     filepath = os.path.join(output_dir,"results_dictionary.npz")
     np.savez(filepath, **results)
     logger.log(f"Results dictionary saved to: {filepath}")
 
-    # TODO: should also save experiment settings from xargs
+    # Cifar 100
+    cifar_100_dict = {}
+    cifar_100_dict["valid_acc"] = np.asarray(cifar100[0])
+    cifar_100_dict["flops"] = np.asarray(cifar100[1])
+    cifar_100_dict["params"] = np.asarray(cifar100[2])
+
+    filepath = os.path.join(output_dir,"Cifar100_dictionary.npz")
+    np.savez(filepath, **cifar_100_dict)
+    logger.log(f"Cifar100_dictionary saved to: {filepath}")
+
+    # Imagnet
+    image_net_dict = {}
+    image_net_dict["valid_acc"] = np.asarray(imageNet[0])
+    image_net_dict["flops"] = np.asarray(imageNet[1])
+    image_net_dict["params"] = np.asarray(imageNet[2])
+
+    filepath = os.path.join(output_dir,"ImageNet_dictionary.npz")
+    np.savez(filepath, **image_net_dict)
+    logger.log(f"ImageNet_dictionary saved to: {filepath}")
+
 
 
 if __name__ == "__main__":
