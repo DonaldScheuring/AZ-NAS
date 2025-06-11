@@ -67,7 +67,8 @@ parser.add_argument("--n_samples", type=int, default=10, help="Number of archite
 parser.add_argument(
     '--proxies',
     nargs='+',
-    default=['aznas', 'zen', 'gradnorm', 'naswot', 'synflow', 'snip', 'grasp', 'gradsign', 'tenas', 'zico'],
+    default=['aznas', 'zen', 'gradnorm', 'naswot', 'synflow','zico'],
+    #default=['aznas', 'zen', 'gradnorm', 'naswot', 'synflow', 'snip', 'grasp', 'gradsign', 'tenas', 'zico'],
     help="A list of proxy names to include in the analysis. "
          "Provide multiple names separated by spaces (e.g., --proxies aznas zen tenas)."
 )
@@ -222,35 +223,35 @@ def search_find_best(xargs, xloader, search_space, n_samples = None, archs = Non
             logger.log("All: {:.5f} GB".format(np.max(all_mem)/1e9))
     
     # Note: the following code is for running through all archs
-    elif archs is not None and n_samples is None:
-        all_time = []
-        all_mem = []
-        #start = torch.cuda.Event(enable_timing=True)
-        #end = torch.cuda.Event(enable_timing=True)
-        for arch in tqdm.tqdm(archs):
-            #torch.cuda.empty_cache()
-            #torch.cuda.reset_peak_memory_stats()
-            network = TinyNetwork(xargs.channel, xargs.num_cells, arch, class_num)
-            network = network.to(device)
-            network.train()
+#     elif archs is not None and n_samples is None:
+#         all_time = []
+#         all_mem = []
+#         #start = torch.cuda.Event(enable_timing=True)
+#         #end = torch.cuda.Event(enable_timing=True)
+#         for arch in tqdm.tqdm(archs):
+#             #torch.cuda.empty_cache()
+#             #torch.cuda.reset_peak_memory_stats()
+#             network = TinyNetwork(xargs.channel, xargs.num_cells, arch, class_num)
+#             network = network.to(device)
+#             network.train()
 
-            #start.record()
+#             #start.record()
 
-            info_dict = score_fn.compute_nas_score(network, gpu, trainloader=trainloader, resolution=resolution, batch_size=batch_size)
+#             info_dict = score_fn.compute_nas_score(network, gpu, trainloader=trainloader, resolution=resolution, batch_size=batch_size)
 
-            #end.record()
-            # torch.cuda.synchronize()
-            #all_time.append(start.elapsed_time(end))
-#             all_mem.append(torch.cuda.max_memory_reserved())
-            #all_mem.append(torch.cuda.max_memory_allocated())
+#             #end.record()
+#             # torch.cuda.synchronize()
+#             #all_time.append(start.elapsed_time(end))
+# #             all_mem.append(torch.cuda.max_memory_reserved())
+#             #all_mem.append(torch.cuda.max_memory_allocated())
 
-            arch_list.append(arch)
-            if zero_shot_score_dict is None: # initialize dict
-                zero_shot_score_dict = dict()
-                for k in info_dict.keys():
-                    zero_shot_score_dict[k] = []
-            for k, v in info_dict.items():
-                zero_shot_score_dict[k].append(v)
+#             arch_list.append(arch)
+#             if zero_shot_score_dict is None: # initialize dict
+#                 zero_shot_score_dict = dict()
+#                 for k in info_dict.keys():
+#                     zero_shot_score_dict[k] = []
+#             for k, v in info_dict.items():
+#                 zero_shot_score_dict[k].append(v)
 
         # logger.log("------Runtime------")
         # logger.log("All: {:.5f} ms".format(np.mean(all_time)))
