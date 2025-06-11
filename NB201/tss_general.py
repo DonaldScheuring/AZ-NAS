@@ -63,12 +63,12 @@ parser.add_argument("--save_dir", type=str, default='./results/tmp', help="Folde
 
 
 #parser.add_argument('--zero_shot_score', type=str, default='az_nas', choices=['az_nas','zico','zen','gradnorm','naswot','synflow','snip','grasp','te_nas','gradsign'])
-parser.add_argument("--n_samples", type=int, default=10, help="Number of architectures to evaluate from NB201")
+parser.add_argument("--n_samples", type=int, default=1000, help="Number of architectures to evaluate from NB201")
 parser.add_argument(
     '--proxies',
     nargs='+',
-    default=['aznas', 'zen', 'gradnorm', 'naswot', 'synflow','zico'],
-    #default=['aznas', 'zen', 'gradnorm', 'naswot', 'synflow', 'snip', 'grasp', 'gradsign', 'tenas', 'zico'],
+    #default=['aznas', 'zen', 'gradnorm', 'naswot', 'synflow','zico'],
+    default=['aznas', 'zen', 'gradnorm', 'naswot', 'synflow', 'snip', 'grasp', 'gradsign', 'tenas', 'zico'],
     help="A list of proxy names to include in the analysis. "
          "Provide multiple names separated by spaces (e.g., --proxies aznas zen tenas)."
 )
