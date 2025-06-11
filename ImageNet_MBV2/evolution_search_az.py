@@ -167,6 +167,7 @@ def _force_fp32_after_forward(net, gpu, input_size):
         if b.dtype == torch.float64:
             b.data = b.data.float()
 
+# Looks like this one takes architectures in one at a time (not batch processed)
 def compute_nas_score(AnyPlainNet, random_structure_str, gpu, args,
                       trainloader=None, lossfunc=None):
     """Compute the standard AZ-NAS proxies."""
@@ -191,6 +192,7 @@ def compute_nas_score(AnyPlainNet, random_structure_str, gpu, args,
     torch.cuda.empty_cache()
     return info
 
+# This is the code Donald added. This only also takes one architecture in at a time
 def compute_all_proxies(AnyPlainNet, random_structure_str, gpu, args, trainloader=None, lossfunc=None):
     net = AnyPlainNet(num_classes=args.num_classes, plainnet_struct=random_structure_str, no_create=False, no_reslink=args.search_no_res)
     net = net.cuda(gpu)
@@ -202,7 +204,7 @@ def compute_all_proxies(AnyPlainNet, random_structure_str, gpu, args, trainloade
     info = compute_az_nas_score.compute_nas_score(model=net, gpu=gpu, trainloader=trainloader, resolution=args.input_image_size, batch_size=args.batch_size)
 
     #proxies
-    info['zen'] = compute_zen_score.compute_nas_score(gcompute_allpu, net, args.gamma, args.input_image_size, args.batch_size, repeat=1)['avg_nas_score']
+    info['zen'] = compute_zen_score.compute_nas_score(gpu, net, args.gamma, args.input_image_size, args.batch_size, repeat=1)['avg_nas_score']
     info['gradnorm'] = compute_gradnorm_score.compute_nas_score(gpu, net, args.input_image_size, args.batch_size)
     info['syncflow'] = compute_syncflow_score.do_compute_nas_score(gpu, net, args.input_image_size, args.batch_size)
 
@@ -240,6 +242,7 @@ def getmisc(args):
     elif args.dataset == "cifar100":
         root = args.datapath
         imgsize = 32
+    # NOTE: interesting didn't know imagenet-1k was in here
     elif args.dataset.startswith("imagenet-1k"):
         root = args.datapath
         imgsize = 224
@@ -249,6 +252,7 @@ def getmisc(args):
     else:
         raise ValueError(f"Unknown dataset {args.dataset}")
 
+    # NOTE: for GB proxies may not be able to just change datasets easily
     train_data, test_data, xshape, class_num = datasets.get_datasets(
         args.dataset, root, 0
     )
@@ -285,7 +289,7 @@ def main(args, argv):
             datay = datay.cuda(non_blocking=True)
             trainbatches.append([datax, datay])
 
-    best_structure_txt = os.path.join(args.save_dir, 'best_structure.txt')
+    best_structure_txt = os.path.join(args.save_dir, 'best_structure.txt'new)
     if os.path.isfile(best_structure_txt):
         print(f'skip {best_structure_txt}')
         return None
@@ -336,6 +340,7 @@ def main(args, argv):
 
         # measure zero-shot proxies
         t0 = time.time()
+        # NOTE: here we score the new single new structure across all proxies (not batched.)
         the_nas_core = compute_all_proxies(AnyPlainNet, random_structure_str,
                                            gpu, args, trainbatches, lossfunc)
         dt = time.time() - t0
