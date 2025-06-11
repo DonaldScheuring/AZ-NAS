@@ -289,7 +289,7 @@ def main(args, argv):
             datay = datay.cuda(non_blocking=True)
             trainbatches.append([datax, datay])
 
-    best_structure_txt = os.path.join(args.save_dir, 'best_structure.txt'new)
+    best_structure_txt = os.path.join(args.save_dir, 'best_structure.txt')
     if os.path.isfile(best_structure_txt):
         print(f'skip {best_structure_txt}')
         return None
