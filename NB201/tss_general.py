@@ -101,7 +101,9 @@ if torch.cuda.is_available():
     gpu_name = torch.cuda.get_device_name(0) # Get name of the first GPU
     print(f"PyTorch: GPU is available! Using: {gpu_name}")
     gpu = torch.cuda.current_device()
+    print(f"gpu variable: {gpu}")
     device = torch.device('cuda:{}'.format(xargs.gpu))
+    print(f"device variable: {device}")
 else:
     print("PyTorch: No GPU found, using CPU.")
     gpu = None
