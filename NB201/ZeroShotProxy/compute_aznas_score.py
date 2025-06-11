@@ -111,10 +111,10 @@ def compute_nas_score(model, gpu, trainloader, resolution, batch_size, init_meth
     # model.cuda()
     info = {}
     nas_score_list = []
-    # if gpu is not None:
-    #     device = torch.device('cuda:{}'.format(gpu))
-    # else:
-    device = torch.device('cpu')
+    if gpu is not None:
+        device = torch.device('cuda:{}'.format(gpu))
+    else:
+        device = torch.device('cpu')
 
     if fp16:
         dtype = torch.half
@@ -193,6 +193,6 @@ def compute_nas_score(model, gpu, trainloader, resolution, batch_size, init_meth
 
     info['expressivity_az'] = float(expressivity) if not np.isnan(expressivity) else -np.inf
     info['progressivity_az'] = float(progressivity) if not np.isnan(progressivity) else -np.inf
-    info['trainability_az'] = float(trainability) if not np.isnan(trainability) else -np.inf
+    info['trainability'] = float(trainability) if not np.isnan(trainability) else -np.inf
     # info['complexity'] = float(model.get_FLOPs(resolution)) # take info from api
     return info

@@ -61,22 +61,22 @@ def cross_entropy(logit, target):
     loss = -(target * prob_logit).sum(dim=1).mean()
     return loss
 
-def compute_nas_score(model, gpu, trainloader, resolution, batch_size):
+def compute_nas_score(model, device, trainloader, resolution, batch_size):
 
     model.train()
     model.requires_grad_(True)
 
     model.zero_grad()
 
-    if gpu is not None:
-        torch.cuda.set_device(gpu)
-        model = model.cuda(gpu)
+    if device is not None:
+        torch.cuda.set_device(device)
+        model = model.cuda(device)
 
     # network_weight_gaussian_init(model)
     init_model(model, 'kaiming_norm_fanin')
     input = torch.randn(size=[batch_size, 3, resolution, resolution])
-    if gpu is not None:
-        input = input.cuda(gpu)
+    if device is not None:
+        input = input.cuda(device)
     _, output = model(input)
     # y_true = torch.rand(size=[batch_size, output.shape[1]], device=torch.device('cuda:{}'.format(gpu))) + 1e-10
     # y_true = y_true / torch.sum(y_true, dim=1, keepdim=True)
@@ -85,8 +85,8 @@ def compute_nas_score(model, gpu, trainloader, resolution, batch_size):
     y = torch.randint(low=0, high=num_classes, size=[batch_size])
 
     one_hot_y = F.one_hot(y, num_classes).float()
-    if gpu is not None:
-        one_hot_y = one_hot_y.cuda(gpu)
+    if device is not None:
+        one_hot_y = one_hot_y.cuda(device)
 
     loss = cross_entropy(output, one_hot_y)
     loss.backward()

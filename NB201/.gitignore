@@ -5,3 +5,4 @@ api_data/
 *.pickle
 backup/
 *.pdf
+../cifar.python/
