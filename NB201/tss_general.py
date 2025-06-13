@@ -35,6 +35,8 @@ from nats_bench import create
 from custom.tss_model import TinyNetwork
 from xautodl.models.cell_searchs.genotypes import Structure
 from ZeroShotProxy import *
+from proxies import EnsembleProxies
+from aggregators import *
 
 
 parser = argparse.ArgumentParser("Training-free NAS on NAS-Bench-201 (NATS-Bench-TSS)")
@@ -63,15 +65,20 @@ parser.add_argument("--save_dir", type=str, default='./results/tmp', help="Folde
 
 
 #parser.add_argument('--zero_shot_score', type=str, default='az_nas', choices=['az_nas','zico','zen','gradnorm','naswot','synflow','snip','grasp','te_nas','gradsign'])
-parser.add_argument("--n_samples", type=int, default=1000, help="Number of architectures to evaluate from NB201")
-parser.add_argument(
-    '--proxies',
-    nargs='+',
-    #default=['aznas', 'zen', 'gradnorm', 'naswot', 'synflow','zico'],
-    default=['aznas', 'zen', 'gradnorm', 'naswot', 'synflow', 'snip', 'grasp', 'gradsign', 'tenas', 'zico'],
-    help="A list of proxy names to include in the analysis. "
-         "Provide multiple names separated by spaces (e.g., --proxies aznas zen tenas)."
-)
+parser.add_argument("--n_samples", type=int, default=2, help="Number of architectures to evaluate from NB201")
+
+
+# Replace with Ensemble Proxies
+# parser.add_argument(
+#     '--proxies',
+#     nargs='+',
+#     #default=['aznas', 'zen', 'gradnorm', 'naswot', 'synflow','zico'],
+#     default=['aznas', 'zen', 'gradnorm', 'naswot', 'synflow', 'snip', 'grasp', 'gradsign', 'tenas', 'zico'],
+#     help="A list of proxy names to include in the analysis. "
+#          "Provide multiple names separated by spaces (e.g., --proxies aznas zen tenas)."
+# )
+
+
 parser.add_argument("--rand_seed", type=int, default=1, help="manual seed (we use 1-to-5)")
 args = parser.parse_args(args=[])
 
@@ -159,6 +166,27 @@ def search_find_best(xargs, xloader, search_space, n_samples = None, archs = Non
     batch_size = input_.size(0)
     zero_shot_score_dict = None 
     arch_list = []
+
+    # There are duplicate entries in the EnsembleProxies (need to loop through and find a set)
+    proxies = []
+    for key, value in EnsembleProxies.items():
+        for proxy in value:
+            proxies.append(proxy.value)
+    # Remove duplicates
+    proxies = list(set(proxies))
+
+    # Because AZ-NAS produces the 4 components, if any component is present in the
+    # list, remove all individual AZ-NAS components and replace with the ensemble AZ-nas
+    if any(proxy.endswith("_az") for proxy in proxies):
+        proxies = [proxy for proxy in proxies if not proxy.endswith("_az")]
+        proxies.append("aznas")
+
+    # Same with TENAS
+    if any(proxy.endswith("_tenas") for proxy in proxies):
+        proxies = [proxy for proxy in proxies if not proxy.endswith("_tenas")]
+        proxies.append("tenas")
+
+    logger.log(f"Proxy list: {proxies}")
         
     if archs is None and n_samples is not None:
         all_time = []
@@ -182,7 +210,10 @@ def search_find_best(xargs, xloader, search_space, n_samples = None, archs = Non
 
             # Each proxy returns a dictionary with the name and value of the proxy
             scores_dict = {}
-            for proxy in xargs.proxies:
+            for proxy in proxies:
+                
+                if proxy == "FLOPs":
+                    continue    #Flops are pulled from the API
                 
                 if proxy in real_input_metrics:
                     print('Use real images as inputs')
@@ -196,6 +227,8 @@ def search_find_best(xargs, xloader, search_space, n_samples = None, archs = Non
 
 
                 score_dict = score_fn.compute_nas_score(network, gpu, trainloader=trainloader, resolution=resolution, batch_size=batch_size)
+                
+                # Here we add the individual first-order proxy scores
                 scores_dict.update(score_dict)
 
             if gpu:
@@ -367,12 +400,6 @@ def get_proxy_scatter_plots(results):
         kendall_correlations.append(kendalltau[0])
         pearson_correlations.append(pearsonr[0])    
 
-    # NOTE: This is for determining the best arch based on AZ-NAS
-    # best_idx = np.argmax(rank_agg)
-    # best_arch, acc = archs[best_idx], api_valid_accs[best_idx]
-    # if api is not None:
-    #     print("{:}".format(api.query_by_arch(best_arch, "200")))
-
 
     # ----------- Bar Chart for Proxy vs True accuracy -----------
     
@@ -393,7 +420,6 @@ def get_proxy_scatter_plots(results):
     plt.title("Correlation of Proxies with True Accuracy", fontsize=16)
     plt.xticks(x_positions, proxy_names, rotation=45, ha="right", fontsize=10)
     plt.yticks(fontsize=10)
-    plt.ylim([-1, 1]) # Correlation coefficients range from -1 to 1
     plt.axhline(0, color='gray', linewidth=0.8) # Add a line at y=0 for reference
     plt.legend(fontsize=10)
     plt.grid(axis='y', alpha=0.75)
@@ -404,34 +430,8 @@ def get_proxy_scatter_plots(results):
         os.makedirs(filepath)
     plt.savefig(os.path.join(filepath,"proxy_correlations_bar_chart.png"), dpi=300)
 
-def add_ensembles_to_results(results, api_valid_accs, api_flops):
-    results.update({'FLOPs':api_flops})
-    # Add ground_truth accuracy to results
-    results.update({'accuracy':api_valid_accs})
 
-    # Also put TE-NAS proxy in dictionary
-    rank_agg = None
-    for k in results.keys():
-        if "_tenas" in k:
-            print(k)
-            if rank_agg is None:
-                rank_agg = stats.rankdata(results[k])
-            else:
-                rank_agg = rank_agg + stats.rankdata(results[k]) # NOTE: how does adding ranks work?
-    results.update({"TE-NAS":rank_agg})
 
-    # Also put AZ-NAS proxy in dictionary
-    rank_agg = None
-    l = len(api_flops)
-    rank_agg = np.log(stats.rankdata(api_flops) / l)
-    for k in results.keys():    
-        if "_az" in k or k=="FLOPs": # NOTE: need to only extract out AZ_nas proxies, not all of them
-            print(k)
-            if rank_agg is None:
-                rank_agg = np.log( stats.rankdata(results[k]) / l)
-            else:
-                rank_agg = rank_agg + np.log( stats.rankdata(results[k]) / l)
-    results.update({"AZ-NAS":rank_agg})
 
 def main():
 
@@ -447,6 +447,7 @@ def main():
     cifar100 = [[], [], []]
     imageNet = [[], [], []]
     api_valid_accs, api_flops, api_params = [], [], []
+    
     for a in archs:
         # cifar 10
         valid_acc, flops, params = get_results_from_api(api, a, 'cifar10')
@@ -466,7 +467,7 @@ def main():
         imageNet[2].append(params)
 
         
-        
+    # TODO: we should store this info
     print("Maximum acc: {}% \n Info".format(np.max(api_valid_accs)))
     best_idx = np.argmax(api_valid_accs)
     best_arch = archs[best_idx]
@@ -477,7 +478,17 @@ def main():
     # NOTE: get_proxy_scatter_plots modifies results and adds the aggregate proxies (AZ-NAS, TE-NAS) and api_valid_accs and api_flops
 
     # Put ensemble metrics in the results
-    add_ensembles_to_results(results, api_valid_accs, api_flops)
+    results.update({'FLOPs':api_flops})
+    # Add ground_truth accuracy to results
+    results.update({'accuracy':api_valid_accs})
+
+    # Also put TE-NAS proxy in dictionary
+    tenas = tenas_aggregator(results)
+    results.update({'tenas': tenas})
+    # Also put AZ-NAS proxy in dictionary
+    aznas = az_aggregator(results)
+    results.update({'aznas': aznas})
+
 
     # Make visualisations
     get_proxy_scatter_plots(results)

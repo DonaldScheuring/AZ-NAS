@@ -1,0 +1,26 @@
+Main Function with logger : Logger(dir=results/tmp, use-tf=False, writer=None)
+Arguments : -------------------------------
+data_path        : ./cifar.python
+dataset          : cifar10
+search_space     : tss
+config_path      : ./configs/nas-benchmark/algos/weight-sharing.config
+max_nodes        : 4
+channel          : 16
+num_cells        : 5
+affine           : 1
+track_running_stats : 0
+print_freq       : 200
+gpu              : 0
+workers          : 4
+api_data_path    : ./api_data/NATS-tss-v1_0-3ffb9-simple/
+save_dir         : ./results/tmp
+n_samples        : 2
+rand_seed        : 1
+Python  Version  : 3.12.3 (main, Feb  4 2025, 14:48:35) [GCC 13.3.0]
+Pillow  Version  : 11.2.1
+PyTorch Version  : 2.7.0+cu126
+cuDNN   Version  : 90501
+CUDA available   : False
+CUDA GPU numbers : 0
+CUDA_VISIBLE_DEVICES : 0
+./configs/nas-benchmark/algos/weight-sharing.config
