@@ -240,9 +240,9 @@ def search_find_best(xargs, xloader, search_space, n_samples=None, archs=None):
     proxy_perf_summary = {}
     for proxy, stats in proxy_stats.items():
         proxy_perf_summary[proxy] = {
-            "avg_time_ms": float(np.mean(stats["times"])) if stats["times"] else 0.0,
-            "avg_mem_GB": float(np.mean(stats["mem_reserved"])) / 1e9 if stats["mem_reserved"] else 0.0,
-            "max_mem_GB": float(np.max(stats["mem_reserved"])) / 1e9 if stats["mem_reserved"] else 0.0
+            "avg_time_ms": float(np.mean(stats["times"])),
+            "avg_mem_GB": float(np.mean(stats["mem_reserved"])) / 1e9,
+            "max_mem_GB": float(np.max(stats["mem_reserved"])) / 1e9
         }
 
     return arch_list, zero_shot_score_dict, proxy_perf_summary
