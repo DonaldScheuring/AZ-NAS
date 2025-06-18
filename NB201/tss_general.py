@@ -114,13 +114,13 @@ logger = prepare_logger(args)
 # Let system decide which to useNB201
 if torch.cuda.is_available():
     gpu_name = torch.cuda.get_device_name(0) # Get name of the first GPU
-    print(f"PyTorch: GPU is available! Using: {gpu_name}")
+    logger.log(f"PyTorch: GPU is available! Using: {gpu_name}")
     gpu = torch.cuda.current_device()
-    print(f"gpu variable: {gpu}")
+    logger.log(f"gpu variable: {gpu}")
     device = torch.device('cuda:{}'.format(xargs.gpu))
-    print(f"device variable: {device}")
+    logger.log(f"device variable: {device}")
 else:
-    print("PyTorch: No GPU found, using CPU.")
+    logger.log("PyTorch: No GPU found, using CPU.")
     gpu = None
     device = "cpu"
 
@@ -179,6 +179,9 @@ def search_find_best(xargs, xloader, search_space, n_samples=None, archs=None):
     zero_shot_score_dict = defaultdict(list)  # Score values
     arch_list = []
 
+    logger.log(f"GPU: {gpu}")
+    logger.log(f"Device: {device}")
+
     if gpu:
         start = torch.cuda.Event(enable_timing=True)
         end = torch.cuda.Event(enable_timing=True)
@@ -198,7 +201,7 @@ def search_find_best(xargs, xloader, search_space, n_samples=None, archs=None):
             logger.log(f"Processing proxy: {proxy}...")
 
             if proxy in real_input_metrics:
-                trainloader = train_loader
+                trainloader = train_loader.to(device)
             else:
                 trainloader = None
 
