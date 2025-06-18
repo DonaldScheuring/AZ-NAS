@@ -11,7 +11,7 @@ from scipy import stats
 #from aggregators import az_aggregator, tenas_aggregator, geometric_mean
 
 # Global paths
-EXPERIMENTS_DIR = "./results/Experiment_2_Epoch_Test_20250618_152018"
+EXPERIMENTS_DIR = "./results/Experiment_2_Epoch_Test_20250618_144802"
 PROXY_FILEPATH = os.path.join(EXPERIMENTS_DIR, "Proxy_Scores_Dictionary.npz")
 SUMMARY_FILEPATH = os.path.join(EXPERIMENTS_DIR, "proxy_performance_summary.json")
 SAVE_DIR = os.path.join(EXPERIMENTS_DIR, "figs")
@@ -82,12 +82,13 @@ def generate_metrics_table(datasets, proxy_scores, accuracy_dict, perf_summary):
         for dataset in datasets:
             kt, spr, acc, _ = rank_and_correlate(proxy_scores[proxy], accuracy_dict[dataset])
             row.extend([f"{kt:.3f}", f"{spr:.3f}", f"{acc:.3f}"])
-        runtime = perf_summary.get(proxy, {}).get("runtime", 0)
-        mem = perf_summary.get(proxy, {}).get("memory", 0)
-        row.extend([f"{runtime:.1f}", f"{mem:.2f}"])
+        runtime = perf_summary.get(proxy, {}).get("avg_time_ms", 0)
+        avg_mem = perf_summary.get(proxy, {}).get("avg_mem_GB", 0)
+        max_mem = perf_summary.get(proxy, {}).get("max_mem_GB", 0)
+        row.extend([f"{runtime:.1f}", f"{avg_mem:.2f}", f"{max_mem:.2f}"])
         rows.append(row)
 
-    cols = ["Proxy"] + sum([[f"{d}_KT", f"{d}_SPR", f"{d}_ACC"] for d in datasets], []) + ["Runtime (ms)", "Memory (GB)"]
+    cols = ["Proxy"] + sum([[f"{d}_KT", f"{d}_SPR", f"{d}_ACC"] for d in datasets], []) + ["Avg Runtime (ms)", "Avg Memory (GB)", "Max Memory (GB)"]
     df = pd.DataFrame(rows, columns=cols)
     df.to_csv(os.path.join(SAVE_DIR, "Table1_Reproduction.csv"), index=False)
     print(df.head())
