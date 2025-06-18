@@ -198,7 +198,7 @@ def search_find_best(xargs, xloader, search_space, n_samples=None, archs=None):
         scores_dict = {}
         for proxy in proxies:
 
-            logger.log(f"Processing proxy: {proxy}...")
+            #logger.log(f"Processing proxy: {proxy}...")
 
             if proxy in real_input_metrics:
                 trainloader = train_loader
@@ -225,7 +225,7 @@ def search_find_best(xargs, xloader, search_space, n_samples=None, archs=None):
                 mem_reserved = torch.cuda.max_memory_reserved()
                 mem_alloc = torch.cuda.max_memory_allocated()
                 
-                logger.log("Appending time, memory...")
+                # logger.log("Appending time, memory...")
                 proxy_stats[proxy]["times"].append(elapsed_time)
                 proxy_stats[proxy]["mem_reserved"].append(mem_reserved)
                 proxy_stats[proxy]["mem_alloc"].append(mem_alloc)
@@ -242,11 +242,10 @@ def search_find_best(xargs, xloader, search_space, n_samples=None, archs=None):
     proxy_perf_summary = {}
     for proxy, stats in proxy_stats.items():
         proxy_perf_summary[proxy] = {
-            "avg_time_ms": float(np.mean(stats["times"])),
-            "avg_mem_GB": float(np.mean(stats["mem_reserved"])) / 1e9,
-            "max_mem_GB": float(np.max(stats["mem_reserved"])) / 1e9
+            "avg_time_ms": float(np.mean(stats["times"])) if stats["times"] else 0.0,
+            "avg_mem_GB": float(np.mean(stats["mem_reserved"])) / 1e9 if stats["mem_reserved"] else 0.0,
+            "max_mem_GB": float(np.max(stats["mem_reserved"])) / 1e9 if stats["mem_reserved"] else 0.0
         }
-
     return arch_list, zero_shot_score_dict, proxy_perf_summary
 
 
