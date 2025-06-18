@@ -201,7 +201,7 @@ def search_find_best(xargs, xloader, search_space, n_samples=None, archs=None):
             logger.log(f"Processing proxy: {proxy}...")
 
             if proxy in real_input_metrics:
-                trainloader = train_loader.to(device)
+                trainloader = train_loader
             else:
                 trainloader = None
 
