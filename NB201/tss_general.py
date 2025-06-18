@@ -309,12 +309,10 @@ def main():
         np.savez(save_path, **results)
         logger.log(f"Saved {dataset} results to {save_path}")
 
-
     # Save runtime/memory stats to JSON
-    results_path = os.path.join(xargs.save_dir, "proxy_performance_summary.json")
-    with open(results_path, "w") as f:
+    with open(os.path.join(xargs.save_dir, "proxy_performance_summary.json"), "w") as f:
         json.dump(proxy_perf_summary, f, indent=4)
-    logger.log(f"Saved proxy performance summary to {results_path}")
+    logger.log(f"Saved proxy performance summary to proxy_performance_summary.json")
 
     # Save architecture list
     with open(os.path.join(xargs.save_dir, "architectures.json"), "w") as f:
