@@ -224,7 +224,8 @@ def search_find_best(xargs, xloader, search_space, n_samples=None, archs=None):
                 elapsed_time = start.elapsed_time(end)
                 mem_reserved = torch.cuda.max_memory_reserved()
                 mem_alloc = torch.cuda.max_memory_allocated()
-
+                
+                logger.log("Appending time, memory...")
                 proxy_stats[proxy]["times"].append(elapsed_time)
                 proxy_stats[proxy]["mem_reserved"].append(mem_reserved)
                 proxy_stats[proxy]["mem_alloc"].append(mem_alloc)
@@ -236,6 +237,7 @@ def search_find_best(xargs, xloader, search_space, n_samples=None, archs=None):
         for key, value in scores_dict.items():
             zero_shot_score_dict[key].append(value)
 
+    logger.log(f"proxy_stats: {proxy_stats}")
     # Compile performance summary
     proxy_perf_summary = {}
     for proxy, stats in proxy_stats.items():
