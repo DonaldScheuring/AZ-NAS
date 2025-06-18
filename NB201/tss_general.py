@@ -8,6 +8,8 @@ import tqdm
 import scipy.stats as stats
 import matplotlib.pyplot as plt
 import pickle
+import json
+import datetime
 
 import seaborn as sn
 import pandas as pd
@@ -37,6 +39,7 @@ from xautodl.models.cell_searchs.genotypes import Structure
 from ZeroShotProxy import *
 from proxies import EnsembleProxies
 from aggregators import *
+from collections import defaultdict
 
 
 parser = argparse.ArgumentParser("Training-free NAS on NAS-Bench-201 (NATS-Bench-TSS)")
@@ -60,23 +63,27 @@ parser.add_argument("--gpu", type=int, default=0, help="To enable GPU set to 0, 
 parser.add_argument("--workers", type=int, default=4, help="number of data loading workers")
 parser.add_argument("--api_data_path", type=str, default="./api_data/NATS-tss-v1_0-3ffb9-simple/", help="")
 
-parser.add_argument("--save_dir", type=str, default='./results/tmp', help="Folder to save results to")
+desc = "2_Epoch_Test"
+experiment_name = f"Experiment_{desc}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+default_save_dir = os.path.join("./results", experiment_name)
+if not  os.path.exists(default_save_dir):
+    os.makedirs(default_save_dir)
+
+parser.add_argument("--save_dir", type=str, default=default_save_dir, help="Folder to save results to")
 #parser.add_argument("--save_checkpoints_dir", type=str, default='./results/tmp', help="Folder to save checkpoints and log.")
 
 
-#parser.add_argument('--zero_shot_score', type=str, default='az_nas', choices=['az_nas','zico','zen','gradnorm','naswot','synflow','snip','grasp','te_nas','gradsign'])
-parser.add_argument("--n_samples", type=int, default=2, help="Number of architectures to evaluate from NB201")
+parser.add_argument("--n_samples", type=int, default=20, help="Number of architectures to evaluate from NB201")
 
 
-# Replace with Ensemble Proxies
-# parser.add_argument(
-#     '--proxies',
-#     nargs='+',
-#     #default=['aznas', 'zen', 'gradnorm', 'naswot', 'synflow','zico'],
-#     default=['aznas', 'zen', 'gradnorm', 'naswot', 'synflow', 'snip', 'grasp', 'gradsign', 'tenas', 'zico'],
-#     help="A list of proxy names to include in the analysis. "
-#          "Provide multiple names separated by spaces (e.g., --proxies aznas zen tenas)."
-# )
+parser.add_argument(
+    '--proxies',
+    nargs='+',
+    #default=['aznas', 'zen', 'gradnorm', 'naswot', 'synflow','zico'],
+    default=['aznas','zico','zen','gradnorm','naswot','synflow','snip','grasp','gradsign_rev', 'tenas'],
+    help="A list of proxy names to include in the analysis. "
+         "Provide multiple names separated by spaces (e.g., --proxies aznas zen tenas)."
+)
 
 
 parser.add_argument("--rand_seed", type=int, default=1, help="manual seed (we use 1-to-5)")
@@ -104,7 +111,7 @@ logger = prepare_logger(args)
 
 
 
-# Let system decide which to use
+# Let system decide which to useNB201
 if torch.cuda.is_available():
     gpu_name = torch.cuda.get_device_name(0) # Get name of the first GPU
     print(f"PyTorch: GPU is available! Using: {gpu_name}")
@@ -118,7 +125,7 @@ else:
     device = "cpu"
 
 
-real_input_metrics = ['zico', 'snip', 'grasp', 'tenas', 'gradsign']
+real_input_metrics = ['zico', 'snip', 'grasp', 'tenas', 'gradsign_rev']
 
 # dataloaders
 train_data, valid_data, xshape, class_num = get_datasets(xargs.dataset, xargs.data_path, -1)
@@ -158,143 +165,84 @@ def random_genotype(max_nodes, op_names):
     return arch
 
 
-    
-def search_find_best(xargs, xloader, search_space, n_samples = None, archs = None):
-    
+def search_find_best(xargs, xloader, search_space, n_samples=None, archs=None):
+
     input_, target_ = next(iter(xloader))
     resolution = input_.size(2)
     batch_size = input_.size(0)
-    zero_shot_score_dict = None 
     arch_list = []
 
-    # There are duplicate entries in the EnsembleProxies (need to loop through and find a set)
-    proxies = []
-    for key, value in EnsembleProxies.items():
-        for proxy in value:
-            proxies.append(proxy.value)
-    # Remove duplicates
-    proxies = list(set(proxies))
-
-    # Because AZ-NAS produces the 4 components, if any component is present in the
-    # list, remove all individual AZ-NAS components and replace with the ensemble AZ-nas
-    if any(proxy.endswith("_az") for proxy in proxies):
-        proxies = [proxy for proxy in proxies if not proxy.endswith("_az")]
-        proxies.append("aznas")
-
-    # Same with TENAS
-    if any(proxy.endswith("_tenas") for proxy in proxies):
-        proxies = [proxy for proxy in proxies if not proxy.endswith("_tenas")]
-        proxies.append("tenas")
-
+    proxies = xargs.proxies
     logger.log(f"Proxy list: {proxies}")
-        
-    if archs is None and n_samples is not None:
-        all_time = []
-        all_mem = []
+
+    proxy_stats = {proxy: {"times": [], "mem_alloc": [], "mem_reserved": []} for proxy in proxies}
+    zero_shot_score_dict = defaultdict(list)  # Score values
+    arch_list = []
+
+    if gpu:
+        start = torch.cuda.Event(enable_timing=True)
+        end = torch.cuda.Event(enable_timing=True)
+
+    for i in tqdm.tqdm(range(n_samples)):
         if gpu:
-            start = torch.cuda.Event(enable_timing=True)
-            end = torch.cuda.Event(enable_timing=True)
-        for i in tqdm.tqdm(range(n_samples)):
+            torch.cuda.empty_cache()
+            torch.cuda.reset_peak_memory_stats()
+
+        arch = random_genotype(xargs.max_nodes, search_space)
+        network = TinyNetwork(xargs.channel, xargs.num_cells, arch, class_num).to(device)
+        network.train()
+
+        scores_dict = {}
+        for proxy in proxies:
+
+            logger.log(f"Processing proxy: {proxy}...")
+
+            if proxy in real_input_metrics:
+                trainloader = train_loader
+            else:
+                trainloader = None
+
+            score_fn_name = f"compute_{proxy.lower()}_score"
+            score_fn = globals().get(score_fn_name)
+
             if gpu:
                 torch.cuda.empty_cache()
                 torch.cuda.reset_peak_memory_stats()
-            # random sampling
-            arch = random_genotype(xargs.max_nodes, search_space)
-            network = TinyNetwork(xargs.channel, xargs.num_cells, arch, class_num)
-            network = network.to(device)
-            network.train()
-
-            if gpu:
                 start.record()
 
-
-            # Each proxy returns a dictionary with the name and value of the proxy
-            scores_dict = {}
-            for proxy in proxies:
-                
-                if proxy == "FLOPs":
-                    continue    #Flops are pulled from the API
-                
-                if proxy in real_input_metrics:
-                    print('Use real images as inputs')
-                    trainloader = train_loader
-                else:
-                    print('Use random inputs')
-                    trainloader = None
-
-                score_fn_name = "compute_{}_score".format(proxy.lower())
-                score_fn = globals().get(score_fn_name)
-
-
-                score_dict = score_fn.compute_nas_score(network, gpu, trainloader=trainloader, resolution=resolution, batch_size=batch_size)
-                
-                # Here we add the individual first-order proxy scores
-                scores_dict.update(score_dict)
+            score_dict = score_fn.compute_nas_score(
+                network, gpu, trainloader=trainloader,
+                resolution=resolution, batch_size=batch_size
+            )
 
             if gpu:
                 end.record()
                 torch.cuda.synchronize()
-                all_time.append(start.elapsed_time(end))
-                all_mem.append(torch.cuda.max_memory_reserved())
-                all_mem.append(torch.cuda.max_memory_allocated())
+                elapsed_time = start.elapsed_time(end)
+                mem_reserved = torch.cuda.max_memory_reserved()
+                mem_alloc = torch.cuda.max_memory_allocated()
 
-            arch_list.append(arch)
-            if zero_shot_score_dict is None: # initialize dict
-                zero_shot_score_dict = dict()
-                for k in scores_dict.keys():
-                    zero_shot_score_dict[k] = []
-            for k, v in scores_dict.items():
-                zero_shot_score_dict[k].append(v)
+                proxy_stats[proxy]["times"].append(elapsed_time)
+                proxy_stats[proxy]["mem_reserved"].append(mem_reserved)
+                proxy_stats[proxy]["mem_alloc"].append(mem_alloc)
 
-        if gpu:
-            # NOTE: Logger saves everything to the log files that are created on each run. Nice. 
-            logger.log("------Runtime------")
-            logger.log("All: {:.5f} ms".format(np.mean(all_time)))
-            logger.log("------Avg Mem------")
-            logger.log("All: {:.5f} GB".format(np.mean(all_mem)/1e9))
-            logger.log("------Max Mem------")
-            logger.log("All: {:.5f} GB".format(np.max(all_mem)/1e9))
-    
-    # Note: the following code is for running through all archs
-#     elif archs is not None and n_samples is None:
-#         all_time = []
-#         all_mem = []
-#         #start = torch.cuda.Event(enable_timing=True)
-#         #end = torch.cuda.Event(enable_timing=True)
-#         for arch in tqdm.tqdm(archs):
-#             #torch.cuda.empty_cache()
-#             #torch.cuda.reset_peak_memory_stats()
-#             network = TinyNetwork(xargs.channel, xargs.num_cells, arch, class_num)
-#             network = network.to(device)
-#             network.train()
+            scores_dict.update(score_dict)
 
-#             #start.record()
+        arch_list.append(arch)
+        # Some proxies return more than one key value pair
+        for key, value in scores_dict.items():
+            zero_shot_score_dict[key].append(value)
 
-#             info_dict = score_fn.compute_nas_score(network, gpu, trainloader=trainloader, resolution=resolution, batch_size=batch_size)
+    # Compile performance summary
+    proxy_perf_summary = {}
+    for proxy, stats in proxy_stats.items():
+        proxy_perf_summary[proxy] = {
+            "avg_time_ms": float(np.mean(stats["times"])) if stats["times"] else 0.0,
+            "avg_mem_GB": float(np.mean(stats["mem_reserved"])) / 1e9 if stats["mem_reserved"] else 0.0,
+            "max_mem_GB": float(np.max(stats["mem_reserved"])) / 1e9 if stats["mem_reserved"] else 0.0
+        }
 
-#             #end.record()
-#             # torch.cuda.synchronize()
-#             #all_time.append(start.elapsed_time(end))
-# #             all_mem.append(torch.cuda.max_memory_reserved())
-#             #all_mem.append(torch.cuda.max_memory_allocated())
-
-#             arch_list.append(arch)
-#             if zero_shot_score_dict is None: # initialize dict
-#                 zero_shot_score_dict = dict()
-#                 for k in info_dict.keys():
-#                     zero_shot_score_dict[k] = []
-#             for k, v in info_dict.items():
-#                 zero_shot_score_dict[k].append(v)
-
-        # logger.log("------Runtime------")
-        # logger.log("All: {:.5f} ms".format(np.mean(all_time)))
-        # logger.log("------Avg Mem------")
-        # logger.log("All: {:.5f} GB".format(np.mean(all_mem)/1e9))
-        # logger.log("------Max Mem------")
-        # logger.log("All: {:.5f} GB".format(np.max(all_mem)/1e9))
-
-    print(f"Zero shot score dict: {zero_shot_score_dict}")    
-    return arch_list, zero_shot_score_dict
+    return arch_list, zero_shot_score_dict, proxy_perf_summary
 
 
 def get_results_from_api(api, arch, dataset='cifar10'):
@@ -316,214 +264,59 @@ def get_results_from_api(api, arch, dataset='cifar10'):
     return acc, flops, params
 
 
-def make_correlation_matrix(results: dict):
-
-    # Prepare metrics
-    metrics = copy.deepcopy(results)
-
-    keys = key_names = list(metrics.keys())
-
-    # Build correlation matrix
-    matrix = np.zeros((len(keys), len(keys)))
-    for i in range(len(keys)):
-        for j in range(len(keys)):
-            x = stats.rankdata(metrics[keys[i]])
-            y = stats.rankdata(metrics[keys[j]])
-            kendalltau = stats.kendalltau(x, y)[0]
-            matrix[i, j] = kendalltau
-
-    # Convert to DataFrame
-    df_cm = pd.DataFrame(matrix, index=key_names, columns=key_names)
-
-    # Plot
-    plt.figure(figsize=(10, 10))
-    ax = sn.heatmap(df_cm,
-                     annot=True,
-                     fmt=".2f",
-                     cmap='GnBu',
-                     cbar_kws={"shrink": 0.8},
-                     square=True,
-                     linewidths=0.5,
-                     linecolor='gray',
-                     annot_kws={"size": 10})
-
-    plt.xticks(rotation=45, ha="right", fontsize=10)
-    plt.yticks(rotation=0, fontsize=10)
-    plt.title("Kendall Tau Correlation Matrix", fontsize=14, pad=20)
-    plt.tight_layout()
-
-    filepath = os.path.join(xargs.save_dir, "figs")
-    if not os.path.exists(filepath):
-        os.makedirs(filepath)
-    plt.savefig(os.path.join(filepath,"correlation_matrix.png"), dpi=300)
-
-#### Visualize scatter plots
-def visualize_proxy_cmap(x, y, title, save_name, ref_rank=None):
-    if ref_rank is None:
-        ref_rank = x
-    plt.figure(figsize=(4.5*1.5,3*1.5))
-    plt.grid(True, alpha=0.3)
-    plt.scatter(x,y, linewidths=0.1, c=ref_rank, cmap='viridis_r')
-    plt.xlabel("Predicted network ranking", fontsize=12)
-    plt.ylabel("Ground-truth network ranking", fontsize=12)
-    plt.xticks(fontsize=10)
-    plt.yticks(fontsize=10)
-    plt.colorbar()
-    plt.title(title, fontsize=20)
-
-    filepath = os.path.join(xargs.save_dir, "figs/scatter_plots")
-    if not os.path.exists(filepath):
-        os.makedirs(filepath)
-    plt.savefig(os.path.join(filepath,'{}.png'.format(save_name)), dpi=300)
-
-def get_proxy_scatter_plots(results):
-    
-    proxy_names = []
-    kendall_correlations = []
-    pearson_correlations = []    
-
-    # --------- Proxy vs Proxy Correlations ----------------
-    for k in results.keys(): 
-        print(f"Processing proxy: {k}")
-        x = stats.rankdata(results[k])
-        y = stats.rankdata(results["accuracy"]) # Assuming api_valid_accs is the true accuracy
-        
-        kendalltau = stats.kendalltau(x, y)
-        spearmanr = stats.spearmanr(x, y)
-        pearsonr = stats.pearsonr(x, y)
-        
-        # Visualize the scatter plot for each proxy
-        visualize_proxy_cmap(x, y, r"{0} ($\tau$={1:.3f}, $\rho$={2:.3f})".format(k, kendalltau[0], spearmanr[0]), k)
-        
-        # Store correlations for the bar chart
-        proxy_names.append(k)
-        kendall_correlations.append(kendalltau[0])
-        pearson_correlations.append(pearsonr[0])    
-
-
-    # ----------- Bar Chart for Proxy vs True accuracy -----------
-    
-    plt.figure(figsize=(10, 6))
-    
-    # Set the positions for the bars
-    x_positions = np.arange(len(proxy_names))
-    width = 0.35 # Width of the bars
-    
-    # Plot Kendall's Tau bars
-    plt.bar(x_positions - width/2, kendall_correlations, width, label="Kendall's Tau", color='skyblue')
-    
-    # Plot Pearson correlation bars
-    plt.bar(x_positions + width/2, pearson_correlations, width, label="Pearson Correlation", color='lightcoral')
-    
-    plt.xlabel("Proxy", fontsize=12)
-    plt.ylabel("Correlation Coefficient", fontsize=12)
-    plt.title("Correlation of Proxies with True Accuracy", fontsize=16)
-    plt.xticks(x_positions, proxy_names, rotation=45, ha="right", fontsize=10)
-    plt.yticks(fontsize=10)
-    plt.axhline(0, color='gray', linewidth=0.8) # Add a line at y=0 for reference
-    plt.legend(fontsize=10)
-    plt.grid(axis='y', alpha=0.75)
-    plt.tight_layout() # Adjust layout to prevent labels from overlapping
-    
-    filepath = os.path.join(xargs.save_dir, "figs")
-    if not os.path.exists(filepath):
-        os.makedirs(filepath)
-    plt.savefig(os.path.join(filepath,"proxy_correlations_bar_chart.png"), dpi=300)
-
-
-
-
 def main():
-
     api = get_nasbench201_api()
-
     search_space = get_search_space(logger, xargs)
 
-    ######### search across random N archs #########
-    archs, results = search_find_best(xargs, train_loader, search_space, xargs.n_samples)
+    # Get archs and proxy scores (raw)
+    archs, proxy_scores, proxy_perf_summary = search_find_best(
+        xargs, train_loader, search_space, xargs.n_samples
+    )
 
-    
+    # Save proxy data
+    save_path = os.path.join(xargs.save_dir, f"Proxy_Scores_Dictionary.npz")
+    np.savez(save_path, **proxy_scores)
+    logger.log(f"Saved Proxy_Scores_Dictionary to {save_path}")
+    logger.log(f"Proxy dictionary: {proxy_scores}")
 
-    cifar100 = [[], [], []]
-    imageNet = [[], [], []]
-    api_valid_accs, api_flops, api_params = [], [], []
-    
-    for a in archs:
-        # cifar 10
-        valid_acc, flops, params = get_results_from_api(api, a, 'cifar10')
-        api_valid_accs.append(valid_acc)
-        api_flops.append(flops)
-        api_params.append(params)
+    # Get and save dataset specific data
+    datasets = ['cifar10', 'cifar100', 'ImageNet16-120']
+    dataset_results = {}
 
-        # cifar 100
-        valid_acc, flops, params = get_results_from_api(api, a, 'cifar100')
-        cifar100[0].append(valid_acc)
-        cifar100[1].append(flops)
-        cifar100[2].append(params)
+    for dataset in datasets:
+        accs, flops, params = [], [], []
 
-        valid_acc, flops, params = get_results_from_api(api, a, 'ImageNet16-120')
-        imageNet[0].append(valid_acc)
-        imageNet[1].append(flops)
-        imageNet[2].append(params)
+        for arch in archs:
+            acc, f, p = get_results_from_api(api, arch, dataset)
+            accs.append(acc)
+            flops.append(f)
+            params.append(p)
 
-        
-    # TODO: we should store this info
-    print("Maximum acc: {}% \n Info".format(np.max(api_valid_accs)))
-    best_idx = np.argmax(api_valid_accs)
-    best_arch = archs[best_idx]
-    if api is not None:
-        print("{:}".format(api.query_by_arch(best_arch, "200")))
+        results = {}
+        results["accuracy"] = accs
+        results["FLOPs"] = flops
+        results["params"] = params
+        dataset_results[dataset] = results
 
+    for dataset in datasets:
+        results = dataset_results[dataset]
 
-    # NOTE: get_proxy_scatter_plots modifies results and adds the aggregate proxies (AZ-NAS, TE-NAS) and api_valid_accs and api_flops
-
-    # Put ensemble metrics in the results
-    results.update({'FLOPs':api_flops})
-    # Add ground_truth accuracy to results
-    results.update({'accuracy':api_valid_accs})
-
-    # Also put TE-NAS proxy in dictionary
-    tenas = tenas_aggregator(results)
-    results.update({'tenas': tenas})
-    # Also put AZ-NAS proxy in dictionary
-    aznas = az_aggregator(results)
-    results.update({'aznas': aznas})
+        # Save dictionary
+        save_path = os.path.join(xargs.save_dir, f"{dataset.replace('-', '')}_dictionary.npz")
+        np.savez(save_path, **results)
+        logger.log(f"Saved {dataset} results to {save_path}")
 
 
-    # Make visualisations
-    get_proxy_scatter_plots(results)
-    make_correlation_matrix(results)
+    # Save runtime/memory stats to JSON
+    results_path = os.path.join(xargs.save_dir, "proxy_performance_summary.json")
+    with open(results_path, "w") as f:
+        json.dump(proxy_perf_summary, f, indent=4)
+    logger.log(f"Saved proxy performance summary to {results_path}")
 
-    # After updating results, lets save all the whole dictionary (maybe json or picke file)
-    output_dir = os.path.join(xargs.save_dir, "figs")
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    # Cifar 10
-    filepath = os.path.join(output_dir,"results_dictionary.npz")
-    np.savez(filepath, **results)
-    logger.log(f"Results dictionary saved to: {filepath}")
-
-    # Cifar 100
-    cifar_100_dict = {}
-    cifar_100_dict["valid_acc"] = np.asarray(cifar100[0])
-    cifar_100_dict["flops"] = np.asarray(cifar100[1])
-    cifar_100_dict["params"] = np.asarray(cifar100[2])
-
-    filepath = os.path.join(output_dir,"Cifar100_dictionary.npz")
-    np.savez(filepath, **cifar_100_dict)
-    logger.log(f"Cifar100_dictionary saved to: {filepath}")
-
-    # Imagnet
-    image_net_dict = {}
-    image_net_dict["valid_acc"] = np.asarray(imageNet[0])
-    image_net_dict["flops"] = np.asarray(imageNet[1])
-    image_net_dict["params"] = np.asarray(imageNet[2])
-
-    filepath = os.path.join(output_dir,"ImageNet_dictionary.npz")
-    np.savez(filepath, **image_net_dict)
-    logger.log(f"ImageNet_dictionary saved to: {filepath}")
-
+    # Save architecture list
+    with open(os.path.join(xargs.save_dir, "architectures.json"), "w") as f:
+        json.dump([str(a) for a in archs], f, indent=2)
+    logger.log(f"Saved architecture list to architectures.json")
 
 
 if __name__ == "__main__":
