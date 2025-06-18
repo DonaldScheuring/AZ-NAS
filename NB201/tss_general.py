@@ -73,7 +73,7 @@ parser.add_argument("--save_dir", type=str, default=default_save_dir, help="Fold
 #parser.add_argument("--save_checkpoints_dir", type=str, default='./results/tmp', help="Folder to save checkpoints and log.")
 
 
-parser.add_argument("--n_samples", type=int, default=2, help="Number of architectures to evaluate from NB201")
+parser.add_argument("--n_samples", type=int, default=20, help="Number of architectures to evaluate from NB201")
 
 
 parser.add_argument(
