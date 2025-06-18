@@ -182,12 +182,12 @@ def search_find_best(xargs, xloader, search_space, n_samples=None, archs=None):
     logger.log(f"GPU: {gpu}")
     logger.log(f"Device: {device}")
 
-    if gpu:
+    if gpu is not None:
         start = torch.cuda.Event(enable_timing=True)
         end = torch.cuda.Event(enable_timing=True)
 
     for i in tqdm.tqdm(range(n_samples)):
-        if gpu:
+        if gpu is not None:
             torch.cuda.empty_cache()
             torch.cuda.reset_peak_memory_stats()
 
@@ -208,7 +208,7 @@ def search_find_best(xargs, xloader, search_space, n_samples=None, archs=None):
             score_fn_name = f"compute_{proxy.lower()}_score"
             score_fn = globals().get(score_fn_name)
 
-            if gpu:
+            if gpu is not None:
                 torch.cuda.empty_cache()
                 torch.cuda.reset_peak_memory_stats()
                 start.record()
@@ -218,7 +218,7 @@ def search_find_best(xargs, xloader, search_space, n_samples=None, archs=None):
                 resolution=resolution, batch_size=batch_size
             )
 
-            if gpu:
+            if gpu is not None:
                 end.record()
                 torch.cuda.synchronize()
                 elapsed_time = start.elapsed_time(end)
