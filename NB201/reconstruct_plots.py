@@ -6,12 +6,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sn
 from scipy import stats
-#from tss_general import *
-#from proxies import *
-#from aggregators import az_aggregator, tenas_aggregator, geometric_mean
 
 # Global paths
-EXPERIMENTS_DIR = "./results/Experiment_2_Epoch_Test_20250618_144802"
+EXPERIMENTS_DIR = "./results/June18th_1000_Samples_Rand_Seed_1"
 PROXY_FILEPATH = os.path.join(EXPERIMENTS_DIR, "Proxy_Scores_Dictionary.npz")
 SUMMARY_FILEPATH = os.path.join(EXPERIMENTS_DIR, "proxy_performance_summary.json")
 SAVE_DIR = os.path.join(EXPERIMENTS_DIR, "figs")

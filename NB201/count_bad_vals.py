@@ -33,4 +33,4 @@ def count_invalids_in_npz(npz_path):
     print(f"-Inf:   {total_neg_infs}")
 
 # Example usage
-count_invalids_in_npz("./results/Experiment_2_Epoch_Test_20250618_152018/Proxy_Scores_Dictionary.npz")
+count_invalids_in_npz("./results/June18th_1000_Samples_Rand_Seed_1/Proxy_Scores_Dictionary.npz")

@@ -62,7 +62,7 @@ def cross_entropy(logit, target):
     return loss
 
 def compute_nas_score(model, device, trainloader, resolution, batch_size):
-
+    GRADNORM = "gradnorm"
     model.train()
     model.requires_grad_(True)
 
