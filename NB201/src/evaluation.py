@@ -1,7 +1,8 @@
 import torch
 import numpy as np
 import tqdm
-
+import inspect
+import wandb
 from xautodl.datasets import get_datasets, get_nas_search_loaders
 from xautodl.config_utils import load_config
 from custom.tss_model import TinyNetwork
@@ -14,6 +15,13 @@ class ArchEvaluator:
         self.device = device
         self.logger = logger
         self.args = args
+        if self.args.zero_shot_score.lower() in ("random", "oracle"):
+            self.class_num = 10
+            self.train_loader = self.search_loader = self.valid_loader = None
+            self.resolution = 32
+            self.score_fn = None
+            return
+
         self.class_num = class_num
         self.real_input_metrics = real_input_metrics if real_input_metrics is not None else []
 
@@ -35,25 +43,64 @@ class ArchEvaluator:
         self.input_, self.target_ = next(iter(self.train_loader))
         self.resolution = self.input_.size(2)
 
-    def compute_zero_cost_score(self, arch):
-        """Computes the zero-cost proxy score for a given architecture."""
-        torch.cuda.empty_cache()
-        torch.cuda.reset_peak_memory_stats()
 
-        network = TinyNetwork(self.args.channel, self.args.num_cells, arch, self.class_num)
-        network = network.to(self.device)
+
+    # ------------------------------------------------------------------
+    # Zero‑cost proxy computation
+    # ------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # Zero‑cost proxy computation
+    # ------------------------------------------------------------------
+    def compute_zero_cost_score(self, arch):
+        """Return a scalar zero‑cost score for *arch*."""
+        # build a tiny network for this architecture
+        network = TinyNetwork(self.args.channel,
+                              self.args.num_cells,
+                              arch,
+                              self.class_num).to(self.device)
         network.train()
 
-        trainloader = self.train_loader if self.args.zero_shot_score.lower() in self.real_input_metrics else None
+        # real images only for a few proxies
+        trainloader = (self.train_loader
+                       if self.args.zero_shot_score.lower()
+                       in self.real_input_metrics
+                       else None)
 
-        info_dict = self.score_fn.compute_nas_score(
-            network,
-            gpu=self.device.index,
-            trainloader=trainloader,
-            resolution=self.resolution,
-            batch_size=self.args.batch_size
-        )
-        return info_dict[self.args.zero_shot_score.lower()]
+        # ---------- prepare kwargs ------------------------------------
+        gpu_id = self.device.index if self.device.type == "cuda" else None
+        kw     = dict(trainloader=trainloader,
+                      resolution=self.resolution,
+                      batch_size=self.args.batch_size)
+
+        # decide *gpu* vs *device* using the **formal parameters**
+        fn_params = inspect.signature(
+            self.score_fn.compute_nas_score).parameters
+        if "device" in fn_params:
+            kw["device"] = gpu_id
+        elif "gpu" in fn_params:
+            kw["gpu"]    = gpu_id
+
+        # ---------- run the proxy -------------------------------------
+        info_dict = self.score_fn.compute_nas_score(network, **kw)
+
+        # ---------- normalise key names -------------------------------
+        proxy_key = {
+            "gradnorm": "grad_norm",
+            "tenas"   : "ntk_tenas",
+            "aznas"   : "expressivity_az",
+        }.get(self.args.zero_shot_score.lower(),
+              self.args.zero_shot_score.lower())
+
+        if proxy_key not in info_dict:
+            raise KeyError(f"Proxy “{self.args.zero_shot_score}” expected "
+                           f"key “{proxy_key}”, got {list(info_dict)}")
+
+        
+        # ---- auxiliary logging --------------------------------------
+        wandb.log({"proxy_score": float(info_dict[proxy_key])})
+
+        return float(info_dict[proxy_key])
+
 
     def get_accuracy_from_api(self, api, arch):
         """Retrieves validation accuracy from NAS-Bench-201 API."""

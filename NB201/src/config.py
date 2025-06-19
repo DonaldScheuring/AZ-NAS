@@ -16,7 +16,7 @@ def get_args():
     parser.add_argument("--config_path", type=str, default='./configs/nas-benchmark/algos/weight-sharing.config', help="The path to the configuration.")
 
     # Zero-cost Proxy
-    parser.add_argument('--zero_shot_score', type=str, default='az_nas', choices=['az_nas','zico','zen','gradnorm','naswot','synflow','snip','grasp','te_nas','gradsign'], help="Zero-cost proxy score to use.")
+    parser.add_argument('--zero_shot_score', type=str, default='az_nas', choices=['az_nas','zico','zen','gradnorm','naswot','synflow','snip','grasp','te_nas','gradsign', 'random', 'oracle'], help="Zero-cost proxy score to use.")
 
     # Hardware and Logging
     parser.add_argument("--gpu", type=int, default=0, help="GPU device id.")
@@ -27,7 +27,8 @@ def get_args():
     parser.add_argument("--print_freq", type=int, default=200, help="Print frequency (default: 200).")
 
     # Search Algorithm specific arguments
-    parser.add_argument("--search_algorithm", type=str, default='random', choices=['random', 'evolutionary'], help="Choose the NAS search algorithm.")
+    parser.add_argument("--search_algorithm", type=str, default='random', choices=['random', 'evolutionary', 'evolutionary_oracle'], help="NAS search / baseline to run.")
+
 
     # Random Search specific
     parser.add_argument("--n_samples", type=int, default=3000, help="Number of architectures to sample for random search.")
