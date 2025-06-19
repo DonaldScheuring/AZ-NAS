@@ -210,18 +210,18 @@ def run_experiment():
     proxy_scores = np.load(os.path.join(data_dir, "Proxy_Scores_Dictionary.npz"))
 
     aggregators = {
-        # "AX_REG": az_aggregator,
-        # "AZ_EXP": az_aggregator_exp,
-        # # "AZ_LOG": az_aggregator_log,
-        # "GEO_MEAN": geometric_mean_param,
-        # "GEO_MEAN_SENSE":geometric_mean_param_rank_sensitive,
-        # "SOFTMAX": softmax_aggregator,
-        # "POWER": power_aggregator,
-        # "SIGMOID": sigmoid_aggregator,
-        # "EXP": exp_decay_aggregator,
-        # "THRESHOLD": rectifier_aggregator,
-        # "BASE": az_aggregator_base,
-        # "LGB_REGRESSION": None,
+        "AX_REG": az_aggregator,
+        "AZ_EXP": az_aggregator_exp,
+        # "AZ_LOG": az_aggregator_log,
+        "GEO_MEAN": geometric_mean_param,
+        "GEO_MEAN_SENSE":geometric_mean_param_rank_sensitive,
+        "SOFTMAX": softmax_aggregator,
+        "POWER": power_aggregator,
+        "SIGMOID": sigmoid_aggregator,
+        "EXP": exp_decay_aggregator,
+        "THRESHOLD": rectifier_aggregator,
+        "BASE": az_aggregator_base,
+        "LGB_REGRESSION": None,
     }
 
     #alphas = np.linspace(0.001, 10, 100)  # sweep from forgiving to strict
