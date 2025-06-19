@@ -64,5 +64,5 @@ def compute_nas_score(network, gpu, trainloader, resolution, batch_size, batch_i
         
     score = np.mean(s)
     info = {}
-    info['gradsign'] = float(score) if not np.isnan(score) else -np.inf
+    info['gradsign_rev'] = float(score) if not np.isnan(score) else -np.inf
     return info

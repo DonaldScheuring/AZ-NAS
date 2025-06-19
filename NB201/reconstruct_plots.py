@@ -1,39 +1,132 @@
-from tss_general import *
+import os
+import json
+import copy
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sn
+from scipy import stats
 
-def load_saved_results():
-    output_dir = os.path.join(xargs.save_dir, "figs")
-    filepath = os.path.join(output_dir,"results_dictionary.npz")
-    loaded_npz_file = np.load(filepath)
-    logger.log(f"Loaded results from: {filepath}")
-    logger.log(f"Keys in results dictionary: {loaded_npz_file.files}")
-    
-    # --- 3. Re-pack into a standard Python dictionary ---
-    reconstructed_dict = {}
-    for key in loaded_npz_file.files:
-        # Access the array associated with the key and convert it to a regular Python object
-        # if it's a scalar or simple type that was saved as a 0-D array.
-        # For example, np.array(0.95) will load as np.array(0.95), so [()] extracts the scalar.
-        # For strings or other objects saved with allow_pickle=True, [()] is also useful.
-        value = loaded_npz_file[key]
-        if value.shape == (): # Check if it's a 0-D array (scalar)
-            reconstructed_dict[key] = value.item() # .item() extracts the scalar value
-        elif value.dtype == 'O': # Check if it's an object array (often for strings, lists, etc.)
-            reconstructed_dict[key] = value.item() # .item() extracts the object
-        else:
-            reconstructed_dict[key] = value # Otherwise, keep it as a NumPy array
-
-    # --- 4. Close the NpzFile object ---
-    loaded_npz_file.close()
-
-    # --- 5. Verify the reconstructed dictionary ---
-    # print(f"\nReconstructed dictionary:")
-    # print(reconstructed_dict)
-    print(f"Type of reconstructed object: {type(reconstructed_dict)}")
-
-    return reconstructed_dict
+# Global paths
+EXPERIMENTS_DIR = "./results/June18th_1000_Samples_Rand_Seed_1"
+PROXY_FILEPATH = os.path.join(EXPERIMENTS_DIR, "Proxy_Scores_Dictionary.npz")
+SUMMARY_FILEPATH = os.path.join(EXPERIMENTS_DIR, "proxy_performance_summary.json")
+SAVE_DIR = os.path.join(EXPERIMENTS_DIR, "figs")
 
 
-results = load_saved_results()
+def load_json(filepath):
+    with open(filepath, 'r') as f:
+        return json.load(f)
 
-get_proxy_scatter_plots(results=results)
-make_correlation_matrix(results=results)
+def load_npz(filepath):
+    data = np.load(filepath, allow_pickle=True)
+    return {k: data[k].item() if data[k].shape == () or data[k].dtype == 'O' else data[k] for k in data.files}
+
+def rank_and_correlate(predictions, ground_truth):
+    x = stats.rankdata(predictions)
+    y = stats.rankdata(ground_truth)
+    kt = stats.kendalltau(x, y)[0]
+    spr = stats.spearmanr(x, y)[0]
+    acc = (np.argsort(-predictions)[:1] == np.argsort(-ground_truth)[:1]).astype(int)
+    return kt, spr, acc.mean(), acc.std()
+
+def make_scatter_plot(x, y, title, save_path):
+    plt.figure(figsize=(7, 5))
+    plt.grid(True, alpha=0.3)
+    plt.scatter(x, y, c=x, cmap='viridis_r', linewidths=0.1)
+    plt.xlabel("Predicted Ranking")
+    plt.ylabel("Ground Truth Ranking")
+    plt.title(title)
+    plt.colorbar()
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    plt.savefig(save_path, dpi=300)
+    plt.close()
+
+def make_correlation_matrix(results, title, save_path):
+    keys = list(results.keys())
+    matrix = np.zeros((len(keys), len(keys)))
+    for i, k1 in enumerate(keys):
+        for j, k2 in enumerate(keys):
+            matrix[i, j] = stats.kendalltau(stats.rankdata(results[k1]), stats.rankdata(results[k2]))[0]
+    df = pd.DataFrame(matrix, index=keys, columns=keys)
+    plt.figure(figsize=(10, 10))
+    sn.heatmap(df, annot=True, fmt=".2f", cmap='GnBu', square=True, linewidths=0.5)
+    plt.title(title)
+    plt.tight_layout()
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    plt.savefig(save_path, dpi=300)
+    plt.close()
+
+def make_bar_chart(proxy_names, kendall_scores, pearson_scores, save_path):
+    plt.figure(figsize=(10, 6))
+    x = np.arange(len(proxy_names))
+    width = 0.35
+    plt.bar(x - width/2, kendall_scores, width, label="Kendall", color='skyblue')
+    plt.bar(x + width/2, pearson_scores, width, label="Pearson", color='salmon')
+    plt.xticks(x, proxy_names, rotation=45, ha="right")
+    plt.ylabel("Correlation Coefficient")
+    plt.title("Proxy vs Accuracy Correlation")
+    plt.legend()
+    plt.tight_layout()
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    plt.savefig(save_path, dpi=300)
+    plt.close()
+
+def generate_metrics_table(datasets, proxy_scores, accuracy_dict, perf_summary):
+    rows = []
+    for proxy in proxy_scores:
+        row = [proxy]
+        for dataset in datasets:
+            kt, spr, acc, _ = rank_and_correlate(proxy_scores[proxy], accuracy_dict[dataset])
+            row.extend([f"{kt:.3f}", f"{spr:.3f}", f"{acc:.3f}"])
+        runtime = perf_summary.get(proxy, {}).get("avg_time_ms", 0)
+        avg_mem = perf_summary.get(proxy, {}).get("avg_mem_GB", 0)
+        max_mem = perf_summary.get(proxy, {}).get("max_mem_GB", 0)
+        row.extend([f"{runtime:.1f}", f"{avg_mem:.2f}", f"{max_mem:.2f}"])
+        rows.append(row)
+
+    cols = ["Proxy"] + sum([[f"{d}_KT", f"{d}_SPR", f"{d}_ACC"] for d in datasets], []) + ["Avg Runtime (ms)", "Avg Memory (GB)", "Max Memory (GB)"]
+    df = pd.DataFrame(rows, columns=cols)
+    df.to_csv(os.path.join(SAVE_DIR, "Table1_Reproduction.csv"), index=False)
+    print(df.head())
+
+def main():
+    os.makedirs(SAVE_DIR, exist_ok=True)
+    datasets = ["cifar10", "cifar100", "ImageNet16120"]
+    dataset_files = {d: f"{d}_dictionary.npz" for d in datasets}
+
+    accuracy_dict = {d: load_npz(os.path.join(EXPERIMENTS_DIR, f))["accuracy"] for d, f in dataset_files.items()}
+    proxy_scores = load_npz(PROXY_FILEPATH)
+    perf_summary = load_json(SUMMARY_FILEPATH)
+
+    # For each dataset
+    for d in datasets:
+        results = {k: v for k, v in proxy_scores.items() if isinstance(v, np.ndarray)}
+        results["accuracy"] = accuracy_dict[d]
+
+        matrix_path = os.path.join(SAVE_DIR, f"{d}_correlation_matrix.png")
+        make_correlation_matrix(results, f"Correlation Matrix - {d}", matrix_path)
+
+        # Bar chart
+        kts, prs, labels = [], [], []
+        for k in proxy_scores:
+            kt, _, _, _ = rank_and_correlate(proxy_scores[k], accuracy_dict[d])
+            pr = stats.pearsonr(stats.rankdata(proxy_scores[k]), stats.rankdata(accuracy_dict[d]))[0]
+            kts.append(kt)
+            prs.append(pr)
+            labels.append(k)
+        bar_path = os.path.join(SAVE_DIR, f"{d}_bar_chart.png")
+        make_bar_chart(labels, kts, prs, bar_path)
+
+        # Scatter plots
+        for k in proxy_scores:
+            x = stats.rankdata(proxy_scores[k])
+            y = stats.rankdata(accuracy_dict[d])
+            scatter_path = os.path.join(SAVE_DIR, "scatter_plots", f"{d}_{k}.png")
+            make_scatter_plot(x, y, f"{d} - {k}", scatter_path)
+
+    generate_metrics_table(datasets, proxy_scores, accuracy_dict, perf_summary)
+
+
+if __name__ == "__main__":
+    main()
