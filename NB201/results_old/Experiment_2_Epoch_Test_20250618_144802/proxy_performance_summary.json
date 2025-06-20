@@ -1,0 +1,52 @@
+{
+    "aznas": {
+        "avg_time_ms": 98.85877876281738,
+        "avg_mem_GB": 0.4526702592,
+        "max_mem_GB": 0.616562688
+    },
+    "zico": {
+        "avg_time_ms": 1140.6595672607423,
+        "avg_mem_GB": 0.42876272639999996,
+        "max_mem_GB": 0.559939584
+    },
+    "zen": {
+        "avg_time_ms": 30.65396318435669,
+        "avg_mem_GB": 0.1617952768,
+        "max_mem_GB": 0.255852544
+    },
+    "gradnorm": {
+        "avg_time_ms": 57.631671619415286,
+        "avg_mem_GB": 0.4256169984,
+        "max_mem_GB": 0.559939584
+    },
+    "naswot": {
+        "avg_time_ms": 71.78300771713256,
+        "avg_mem_GB": 0.4261412864,
+        "max_mem_GB": 0.559939584
+    },
+    "synflow": {
+        "avg_time_ms": 132.75276927948,
+        "avg_mem_GB": 0.1393557504,
+        "max_mem_GB": 0.253755392
+    },
+    "snip": {
+        "avg_time_ms": 964.418994140625,
+        "avg_mem_GB": 0.4100980736,
+        "max_mem_GB": 0.549453824
+    },
+    "grasp": {
+        "avg_time_ms": 1137.5899047851562,
+        "avg_mem_GB": 0.6919553024,
+        "max_mem_GB": 0.895483904
+    },
+    "gradsign_rev": {
+        "avg_time_ms": 4107.950622558594,
+        "avg_mem_GB": 0.11177820159999999,
+        "max_mem_GB": 0.197132288
+    },
+    "tenas": {
+        "avg_time_ms": 2623.06669921875,
+        "avg_mem_GB": 0.9640607743999999,
+        "max_mem_GB": 1.59383552
+    }
+}

@@ -1,0 +1,52 @@
+{
+    "aznas": {
+        "avg_time_ms": 0.0,
+        "avg_mem_GB": 0.0,
+        "max_mem_GB": 0.0
+    },
+    "zico": {
+        "avg_time_ms": 0.0,
+        "avg_mem_GB": 0.0,
+        "max_mem_GB": 0.0
+    },
+    "zen": {
+        "avg_time_ms": 0.0,
+        "avg_mem_GB": 0.0,
+        "max_mem_GB": 0.0
+    },
+    "gradnorm": {
+        "avg_time_ms": 0.0,
+        "avg_mem_GB": 0.0,
+        "max_mem_GB": 0.0
+    },
+    "naswot": {
+        "avg_time_ms": 0.0,
+        "avg_mem_GB": 0.0,
+        "max_mem_GB": 0.0
+    },
+    "synflow": {
+        "avg_time_ms": 0.0,
+        "avg_mem_GB": 0.0,
+        "max_mem_GB": 0.0
+    },
+    "snip": {
+        "avg_time_ms": 0.0,
+        "avg_mem_GB": 0.0,
+        "max_mem_GB": 0.0
+    },
+    "grasp": {
+        "avg_time_ms": 0.0,
+        "avg_mem_GB": 0.0,
+        "max_mem_GB": 0.0
+    },
+    "gradsign_rev": {
+        "avg_time_ms": 0.0,
+        "avg_mem_GB": 0.0,
+        "max_mem_GB": 0.0
+    },
+    "tenas": {
+        "avg_time_ms": 0.0,
+        "avg_mem_GB": 0.0,
+        "max_mem_GB": 0.0
+    }
+}

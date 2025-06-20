@@ -22,7 +22,8 @@ class Proxy(Enum):
 # Ensembles
 
 EnsembleProxies = {
-                    "zero": [Proxy.EXPRESSIVITY_AZ, Proxy.PROGRESSIVITY_AZ, Proxy.TRAINABILITY_AZ, Proxy.FLOPS],
+                    #"tenas" : [Proxy.NTK_TENAS, Proxy.LR_TENAS],
+                    "aznas": [Proxy.EXPRESSIVITY_AZ, Proxy.PROGRESSIVITY_AZ, Proxy.TRAINABILITY_AZ, Proxy.FLOPS],
                     "one": [Proxy.EXPRESSIVITY_AZ, Proxy.PROGRESSIVITY_AZ, Proxy.ZICO, Proxy.FLOPS],
                     "two": [Proxy.EXPRESSIVITY_AZ, Proxy.PROGRESSIVITY_AZ, Proxy.TRAINABILITY_AZ, Proxy.ZICO, Proxy.FLOPS],
                     "three": [Proxy.EXPRESSIVITY_AZ, Proxy.PROGRESSIVITY_AZ, Proxy.SYNFLOW, Proxy.FLOPS],
@@ -35,7 +36,6 @@ EnsembleProxies = {
                         Proxy.TRAINABILITY_AZ,
                         Proxy.ZEN,
                         Proxy.GRADNORM,
-                        Proxy.NASWOT,
                         Proxy.NASWOT,
                         Proxy.SYNFLOW,
                         Proxy.SNIP,
